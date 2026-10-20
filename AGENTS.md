@@ -12,7 +12,6 @@ See [README.md](./README.md) for setup/dev/deploy commands.
 - `migrations/` — D1 migrations (`wrangler d1 migrations apply sage --local|--remote`); database "sage", binding `DB`. `0002` is Better Auth's generated schema — regenerate + add a new migration when upgrading Better Auth or adding plugins
 - Config: `BETTER_AUTH_URL` var in `wrangler.jsonc`, `BETTER_AUTH_SECRET` wrangler secret (`.dev.vars` locally, see `.dev.vars.example`); `nodejs_compat` flag needed by Better Auth
 - Single root `package.json`; `npm run build` typechecks (strict) both tsconfigs then builds SPA to `dist/client/`
-- Wrangler in this sandbox needs: `XDG_CONFIG_HOME=/tmp/wr XDG_DATA_HOME=/tmp/wr-data XDG_CACHE_HOME=/tmp/wr-cache` (OAuth token lives in /tmp/wr)
 - Auth design decisions: [docs/auth-plan.md](./docs/auth-plan.md)
 
 ## Known tech debt / next up
@@ -27,14 +26,6 @@ See [README.md](./README.md) for setup/dev/deploy commands.
 - Danger picker uses `role=radiogroup` without arrow-key nav — swap to visually-hidden native radios if we care
 - Delete uses `window.confirm` — fine for now, replace with an in-app dialog if styling matters
 
-## Your role
+## Conventions
 
-You (the agent) will take the role of product owner and tech lead. Assume the user is proficient with tech but not a programmer. Don't implement code yourself, manage subagents to implement and review, you should manage git operations. Suggest pausing for architecture clean up and paying down tech debt when approprite.
-
-## Tech
-
-TypeScript everything by default, avoid unnessary dependencies. Use boring well known tech. Cloudflare hosting.
-
-## Self updating docs
-
-This file (AGENTS.md) should be proactively updated when appropriate summarizing the structure of the project and important principles, but not unnecessary detail that should be files in ./docs/ with links from here.
+Role, default stack (TypeScript + Cloudflare), tooling (mise, project-level installs), git identity and sandbox quirks are global defaults in `~/.claude/CLAUDE.md` — only project-specific facts and deviations belong here. Keep this file current: structure and principles here, detail in `./docs/` linked from here.
