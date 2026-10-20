@@ -1,6 +1,6 @@
 // Sage — Cloudflare Worker + static assets + D1
 {
-  "name": "sage",
+  "name": "herbs",
   "compatibility_date": "2025-10-01",
   // Better Auth uses AsyncLocalStorage (node:async_hooks)
   "compatibility_flags": ["nodejs_compat"],
@@ -13,13 +13,13 @@
   },
   "vars": {
     // Public origin of the app. Local dev overrides this in .dev.vars.
-    "BETTER_AUTH_URL": "https://sage.quiet-flower-951f.workers.dev"
+    "BETTER_AUTH_URL": "https://herbs.aroundme.workers.dev"
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "sage",
-      "database_id": "0347f4c1-dc6d-48c3-ae59-8606bbd06066",
+      "database_id": "35bac70f-d1c7-4539-b271-06c02a4e82ff",
       "migrations_dir": "migrations"
     }
   ]

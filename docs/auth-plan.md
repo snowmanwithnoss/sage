@@ -1,6 +1,6 @@
 # Auth plan (Better Auth)
 
-Status: in progress on `feature/auth`.
+Status: shipped 2026-10-20 (https://herbs.aroundme.workers.dev).
 
 ## Decisions
 

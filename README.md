@@ -72,7 +72,8 @@ npx wrangler secret put BETTER_AUTH_SECRET
 #    (Note: 0003 drops and recreates the spots table, deleting existing spots.)
 npx wrangler d1 migrations apply sage --remote
 
-# 5. Build and deploy
+# 5. Build and deploy (a new Cloudflare account must first register a
+#    workers.dev subdomain: Dashboard → Workers & Pages; ours is "aroundme")
 npm run build
 npx wrangler deploy
 ```
