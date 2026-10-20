@@ -2131,3 +2131,104 @@ button.avatar::after {
     transform: rotate(360deg);
   }
 }
+
+/* ==========================================================================
+   Place search (addresses / suburbs) — results + temporary map marker
+   ========================================================================== */
+
+.search-section-places {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--outline);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: search-spin 0.8s linear infinite;
+}
+
+@keyframes search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.result-icon-place {
+  color: var(--muted);
+}
+
+.result-icon-place svg {
+  margin-top: 0;
+}
+
+.result-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.search-attribution {
+  margin: 4px 20px 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.search-attribution a {
+  color: inherit;
+}
+
+.place-marker {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+}
+
+.place-marker-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgb(32 33 36 / 0.18);
+  border: 2px solid rgb(32 33 36 / 0.55);
+  animation: place-ring 0.35s var(--ease);
+}
+
+.place-marker-dot {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: #202124;
+  border: 3px solid #ffffff;
+  box-shadow: var(--shadow-1);
+}
+
+@keyframes place-ring {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .place-marker-ring {
+    background: rgb(255 255 255 / 0.16);
+    border-color: rgb(255 255 255 / 0.7);
+  }
+  .place-marker-dot {
+    background: #f1f3f4;
+    border-color: #202124;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-spinner,
+  .place-marker-ring {
+    animation: none;
+  }
+}
