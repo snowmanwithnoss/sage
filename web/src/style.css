@@ -102,6 +102,10 @@ body,
   white-space: pre-line;
 }
 
+.popup .popup-danger {
+  margin-top: 4px;
+}
+
 /* ---- form panel ---- */
 
 .panel {
@@ -145,6 +149,47 @@ body,
 .panel .optional {
   font-weight: 400;
   color: #888;
+}
+
+.danger-picker {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.danger-picker legend {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #333;
+  padding: 0;
+}
+
+.danger-options {
+  display: flex;
+  gap: 6px;
+}
+
+.danger-btn {
+  flex: 1;
+  font: inherit;
+  font-size: 0.95rem;
+  letter-spacing: 2px;
+  padding: 6px 0;
+  background: transparent;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.danger-btn.selected {
+  background: #e8f3e8;
+  border-color: #2f7a3d;
+  outline: 2px solid #2f7a3d;
+  outline-offset: -2px;
 }
 
 .panel input,

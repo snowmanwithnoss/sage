@@ -4,8 +4,12 @@ export type Spot = {
   description: string;
   lat: number;
   lng: number;
+  danger: number;
   created_at: string;
 };
+
+export const DANGER_MAX = 5;
+export const DANGER_DEFAULT = 3;
 
 export async function fetchSpots(): Promise<Spot[]> {
   const res = await fetch("/api/spots");
@@ -18,6 +22,7 @@ export async function createSpot(input: {
   description: string;
   lat: number;
   lng: number;
+  danger: number;
 }): Promise<Spot> {
   const res = await fetch("/api/spots", {
     method: "POST",

@@ -10,6 +10,7 @@ export type Spot = {
   description: string;
   lat: number;
   lng: number;
+  danger: number;
   created_at: string;
 };
 
@@ -17,7 +18,7 @@ export const app = new Hono<{ Bindings: Env }>();
 
 app.get("/api/spots", async (c) => {
   const { results } = await c.env.DB.prepare(
-    "SELECT id, name, description, lat, lng, created_at FROM spots ORDER BY created_at DESC"
+    "SELECT id, name, description, lat, lng, danger, created_at FROM spots ORDER BY created_at DESC"
   ).all<Spot>();
   return c.json(results ?? []);
 });
@@ -30,7 +31,7 @@ app.post("/api/spots", async (c) => {
     return c.json({ error: "Invalid JSON body" }, 400);
   }
 
-  const { name, description, lat, lng } = (body ?? {}) as Record<string, unknown>;
+  const { name, description, lat, lng, danger } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof name !== "string" || name.trim().length === 0 || name.trim().length > 100) {
     return c.json({ error: "name is required (max 100 characters)" }, 400);
@@ -48,16 +49,20 @@ app.post("/api/spots", async (c) => {
   if (typeof lng !== "number" || !Number.isFinite(lng) || lng < -180 || lng > 180) {
     return c.json({ error: "lng must be a number between -180 and 180" }, 400);
   }
+  if (danger !== undefined && (typeof danger !== "number" || !Number.isInteger(danger) || danger < 1 || danger > 5)) {
+    return c.json({ error: "danger must be an integer between 1 and 5" }, 400);
+  }
+  const dangerRating = (danger as number | undefined) ?? 3;
 
   const id = crypto.randomUUID();
   const created_at = new Date().toISOString();
 
   await c.env.DB.prepare(
-    "INSERT INTO spots (id, name, description, lat, lng, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO spots (id, name, description, lat, lng, danger, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
   )
-    .bind(id, name.trim(), desc, lat, lng, created_at)
+    .bind(id, name.trim(), desc, lat, lng, dangerRating, created_at)
     .run();
 
-  const spot: Spot = { id, name: name.trim(), description: desc, lat, lng, created_at };
+  const spot: Spot = { id, name: name.trim(), description: desc, lat, lng, danger: dangerRating, created_at };
   return c.json(spot, 201);
 });

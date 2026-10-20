@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { createSpot, fetchSpots, type Spot } from "./api";
+import { createSpot, fetchSpots, DANGER_DEFAULT, DANGER_MAX, type Spot } from "./api";
 
 // Free OSM raster tiles (no token needed). Attribution is required by OSM.
 const OSM_STYLE: maplibregl.StyleSpecification = {
@@ -25,7 +25,11 @@ const OSM_STYLE: maplibregl.StyleSpecification = {
   ],
 };
 
-type FormState = { lat: number; lng: number; name: string; description: string };
+type FormState = { lat: number; lng: number; name: string; description: string; danger: number };
+
+function dangerPeppers(rating: number): string {
+  return "🌶️".repeat(rating) + "·".repeat(DANGER_MAX - rating);
+}
 
 function popupDom(spot: Spot): HTMLElement {
   const wrap = document.createElement("div");
@@ -38,6 +42,10 @@ function popupDom(spot: Spot): HTMLElement {
     p.textContent = spot.description;
     wrap.appendChild(p);
   }
+  const danger = document.createElement("p");
+  danger.className = "popup-danger";
+  danger.textContent = `Danger: ${dangerPeppers(spot.danger)}`;
+  wrap.appendChild(danger);
   return wrap;
 }
 
@@ -87,6 +95,7 @@ export default function App() {
         lng: Number(e.lngLat.lng.toFixed(6)),
         name: "",
         description: "",
+        danger: DANGER_DEFAULT,
       });
     });
 
@@ -129,6 +138,7 @@ export default function App() {
         description: form.description,
         lat: form.lat,
         lng: form.lng,
+        danger: form.danger,
       });
       setSpots((prev) => [spot, ...prev]);
       setForm(null);
@@ -189,6 +199,26 @@ export default function App() {
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </label>
+          <fieldset className="danger-picker">
+            <legend>
+              Danger <span className="optional">(how likely you get chased)</span>
+            </legend>
+            <div className="danger-options" role="radiogroup" aria-label="Danger rating">
+              {Array.from({ length: DANGER_MAX }, (_, i) => i + 1).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.danger === value}
+                  className={form.danger === value ? "danger-btn selected" : "danger-btn"}
+                  title={`Danger rating ${value} of ${DANGER_MAX}`}
+                  onClick={() => setForm({ ...form, danger: value })}
+                >
+                  {dangerPeppers(value).replace(/·/g, "○")}
+                </button>
+              ))}
+            </div>
+          </fieldset>
           <div className="actions">
             <button type="button" onClick={() => setForm(null)} disabled={submitting}>
               Cancel

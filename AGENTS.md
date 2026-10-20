@@ -19,6 +19,8 @@ See [README.md](./README.md) for setup/dev/deploy commands.
 - `Spot` type duplicated between `src/api.ts` and `web/src/api.ts` — extract shared types when API grows
 - Marker render gated on `isStyleLoaded()` in `web/src/App.tsx` — fragile if spots load before style
 - ~955 KB JS bundle (MapLibre) — code-split when first-load perf matters
+- Danger picker uses `role=radiogroup` without arrow-key nav — swap to visually-hidden native radios if we care
+- Danger constants (1/5/default 3) hardcoded server-side in `src/api.ts`, defined again in `web/src/api.ts` — fold into shared types extraction
 
 ## Your role
 
