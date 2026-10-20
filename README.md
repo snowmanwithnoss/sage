@@ -7,6 +7,7 @@ communal mint patch? Drop a pin so neighbours can visit.
 
 - **Cloudflare Workers** — Hono API + static asset hosting
 - **Cloudflare D1** — SQLite storage
+- **Cloudflare KV** — spot photo bytes (binding `PHOTOS`; local dev simulates it)
 - **Vite + React** — single-page app
 - **Better Auth** — email + password accounts, sessions in D1
 - **MapLibre GL JS** — custom "Sage" vector map style (light + dark) on free
@@ -66,6 +67,10 @@ npx wrangler d1 create sage
 # 2. Paste the id into wrangler.jsonc (d1_databases[].database_id) and set
 #    vars.BETTER_AUTH_URL to the public URL of the app
 
+# 2b. Create the photo KV namespace (once) and paste its id into
+#     wrangler.jsonc (kv_namespaces[].id, binding PHOTOS)
+npx wrangler kv namespace create PHOTOS
+
 # 3. Set the auth secret (once; a long random string)
 npx wrangler secret put BETTER_AUTH_SECRET
 
@@ -87,5 +92,5 @@ src/          Worker: Hono app (/api/*), Better Auth setup, entry
 web/          Vite + React SPA (map/, components/, lib/; manifest for home-screen install)
 shared/       Types/constants used by both src/ and web/
 migrations/   D1 migrations (spots + Better Auth tables)
-wrangler.jsonc  Worker config: assets, /api/* routing, D1 binding DB, vars
+wrangler.jsonc  Worker config: assets, /api/* routing, D1 binding DB, KV binding PHOTOS, vars
 ```
