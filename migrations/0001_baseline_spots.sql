@@ -1,6 +1,5 @@
--- Sage D1 schema
--- Note: the CHECK on `danger` only applies to fresh DBs; the live table got the column
--- via ALTER TABLE (SQLite can't add a CHECK that way), so API validation is the real guard.
+-- Baseline: the spots table as it existed before migrations (formerly schema.sql).
+-- IF NOT EXISTS so this is a no-op on databases created from the old schema.sql.
 CREATE TABLE IF NOT EXISTS spots (
   id          TEXT PRIMARY KEY,
   name        TEXT NOT NULL,

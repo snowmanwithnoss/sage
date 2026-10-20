@@ -1,7 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { createSpot, fetchSpots, DANGER_DEFAULT, DANGER_MAX, type Spot } from "./api";
+import {
+  ApiError,
+  createSpot,
+  deleteSpot,
+  fetchSpots,
+  updateSpot,
+  DANGER_DEFAULT,
+  DANGER_MAX,
+  DESCRIPTION_MAX,
+  NAME_MAX,
+  type Spot,
+} from "./api";
+import { authClient } from "./auth";
+import AuthDialog from "./AuthDialog";
 
 // Free OSM raster tiles (no token needed). Attribution is required by OSM.
 const OSM_STYLE: maplibregl.StyleSpecification = {
@@ -25,13 +38,26 @@ const OSM_STYLE: maplibregl.StyleSpecification = {
   ],
 };
 
-type FormState = { lat: number; lng: number; name: string; description: string; danger: number };
+/** `id` set means editing that spot; otherwise adding a new one. */
+type FormState = {
+  id?: string;
+  lat: number;
+  lng: number;
+  name: string;
+  description: string;
+  danger: number;
+};
+
+type PopupActions = {
+  onEdit: (spot: Spot) => void;
+  onDelete: (spot: Spot) => void;
+};
 
 function dangerPeppers(rating: number): string {
   return "🌶️".repeat(rating) + "·".repeat(DANGER_MAX - rating);
 }
 
-function popupDom(spot: Spot): HTMLElement {
+function popupDom(spot: Spot, actions: PopupActions): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "popup";
   const h = document.createElement("h3");
@@ -46,6 +72,22 @@ function popupDom(spot: Spot): HTMLElement {
   danger.className = "popup-danger";
   danger.textContent = `Danger: ${dangerPeppers(spot.danger)}`;
   wrap.appendChild(danger);
+
+  if (spot.is_mine) {
+    const row = document.createElement("div");
+    row.className = "popup-actions";
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = "Edit";
+    edit.addEventListener("click", () => actions.onEdit(spot));
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "danger-action";
+    del.textContent = "Delete";
+    del.addEventListener("click", () => actions.onDelete(spot));
+    row.append(edit, del);
+    wrap.appendChild(row);
+  }
   return wrap;
 }
 
@@ -53,12 +95,37 @@ export default function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  const [mapReady, setMapReady] = useState(false);
   const [spots, setSpots] = useState<Spot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authReason, setAuthReason] = useState<string | undefined>(undefined);
 
-  // Init map, load spots, handle click-to-add
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const userId = session?.user.id ?? null;
+
+  // The map click handler is registered once; read the latest session via a ref.
+  const sessionRef = useRef<"pending" | "signed-in" | "signed-out">("pending");
+  sessionRef.current = sessionPending ? "pending" : userId !== null ? "signed-in" : "signed-out";
+
+  const openSignIn = (reason?: string) => {
+    setAuthReason(reason);
+    setAuthOpen(true);
+  };
+
+  /** Shows an API error; a 401 means the session expired, so prompt sign-in instead. */
+  const reportError = (e: unknown, fallback: string) => {
+    if (e instanceof ApiError && e.status === 401) {
+      setError(null);
+      openSignIn("Your session has expired. Please sign in again.");
+      return;
+    }
+    setError(e instanceof Error ? e.message : fallback);
+  };
+
+  // Init map, handle click-to-add
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
 
@@ -69,25 +136,10 @@ export default function App() {
       zoom: 2,
       attributionControl: { compact: true },
     });
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
+    map.addControl(new maplibregl.NavigationControl(), "bottom-right");
     mapRef.current = map;
 
-    let cancelled = false;
-
-    map.on("load", async () => {
-      try {
-        const loaded = await fetchSpots();
-        if (cancelled) return;
-        setSpots(loaded);
-        if (loaded.length > 0) {
-          const bounds = new maplibregl.LngLatBounds();
-          for (const s of loaded) bounds.extend([s.lng, s.lat]);
-          map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
-        }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load spots");
-      }
-    });
+    map.on("load", () => setMapReady(true));
 
     map.on("click", (e) => {
       // MapLibre opens marker popups from its own map-level click handler
@@ -96,6 +148,12 @@ export default function App() {
       // for clicks on the map itself.
       const target = e.originalEvent.target;
       if (target instanceof Element && (target.closest(".marker") || target.closest(".maplibregl-popup"))) return;
+      // Session still loading: we don't know yet, so do nothing.
+      if (sessionRef.current === "pending") return;
+      if (sessionRef.current === "signed-out") {
+        openSignIn("Sign in to add a herb spot.");
+        return;
+      }
       setForm({
         lat: Number(e.lngLat.lat.toFixed(6)),
         lng: Number(e.lngLat.lng.toFixed(6)),
@@ -106,24 +164,92 @@ export default function App() {
     });
 
     return () => {
-      cancelled = true;
       map.remove();
       mapRef.current = null;
       markersRef.current = [];
+      setMapReady(false);
     };
   }, []);
+
+  // Load spots once the session is known, and again whenever the user
+  // changes, so `is_mine` reflects who is signed in.
+  const fittedRef = useRef(false);
+  useEffect(() => {
+    if (sessionPending) return;
+    let cancelled = false;
+    fetchSpots()
+      .then((loaded) => {
+        if (cancelled) return;
+        setSpots(loaded);
+        setError(null);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load spots");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, sessionPending]);
+
+  // Signing out closes any open add/edit form.
+  useEffect(() => {
+    if (!userId) setForm(null);
+  }, [userId]);
+
+  // Fit the map to the spots the first time both are available.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || fittedRef.current || spots.length === 0) return;
+    fittedRef.current = true;
+    const bounds = new maplibregl.LngLatBounds();
+    for (const s of spots) bounds.extend([s.lng, s.lat]);
+    map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+  }, [spots, mapReady]);
+
+  const handleEdit = (spot: Spot) => {
+    for (const m of markersRef.current) m.getPopup()?.remove();
+    setForm({
+      id: spot.id,
+      lat: spot.lat,
+      lng: spot.lng,
+      name: spot.name,
+      description: spot.description,
+      danger: spot.danger,
+    });
+  };
+
+  const handleDelete = async (spot: Spot) => {
+    if (!window.confirm(`Delete “${spot.name}”? This can't be undone.`)) return;
+    setError(null);
+    try {
+      await deleteSpot(spot.id);
+      setSpots((prev) => prev.filter((s) => s.id !== spot.id));
+      setForm((f) => (f?.id === spot.id ? null : f));
+    } catch (e) {
+      reportError(e, "Failed to delete spot");
+    }
+  };
+
+  // Marker popups are plain DOM built once per spots change; route their
+  // button clicks through a ref so they always call the latest handlers.
+  const popupActionsRef = useRef<PopupActions>({ onEdit: handleEdit, onDelete: handleDelete });
+  popupActionsRef.current = { onEdit: handleEdit, onDelete: handleDelete };
 
   // Sync markers with spots
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map || !mapReady) return;
     for (const m of markersRef.current) m.remove();
+    const actions: PopupActions = {
+      onEdit: (s) => popupActionsRef.current.onEdit(s),
+      onDelete: (s) => popupActionsRef.current.onDelete(s),
+    };
     markersRef.current = spots.map((spot) => {
       const el = document.createElement("div");
-      el.className = "marker";
+      el.className = spot.is_mine ? "marker marker-mine" : "marker";
       el.title = spot.name;
       const popup = new maplibregl.Popup({ offset: 24, closeButton: false }).setDOMContent(
-        popupDom(spot)
+        popupDom(spot, actions)
       );
       // Don't stop propagation on marker/popup clicks here: MapLibre toggles
       // the popup from its own map-level click handler, so the click must
@@ -134,29 +260,41 @@ export default function App() {
         .setPopup(popup)
         .addTo(map);
     });
-  }, [spots]);
+  }, [spots, mapReady]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form) return;
     setSubmitting(true);
     setError(null);
+    const input = {
+      name: form.name,
+      description: form.description,
+      lat: form.lat,
+      lng: form.lng,
+      danger: form.danger,
+    };
     try {
-      const spot = await createSpot({
-        name: form.name,
-        description: form.description,
-        lat: form.lat,
-        lng: form.lng,
-        danger: form.danger,
-      });
-      setSpots((prev) => [spot, ...prev]);
+      if (form.id) {
+        const updated = await updateSpot(form.id, input);
+        setSpots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      } else {
+        const spot = await createSpot(input);
+        setSpots((prev) => [spot, ...prev]);
+      }
       setForm(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add spot");
+      reportError(e, form.id ? "Failed to update spot" : "Failed to add spot");
     } finally {
       setSubmitting(false);
     }
   };
+
+  const handleSignOut = async () => {
+    await authClient.signOut();
+  };
+
+  const editing = form?.id !== undefined;
 
   return (
     <div className="app">
@@ -172,6 +310,25 @@ export default function App() {
         </span>
       </header>
 
+      <div className="account">
+        {sessionPending ? null : session ? (
+          <>
+            <span className="account-email" title={session.user.email}>
+              {session.user.email}
+            </span>
+            <button type="button" onClick={handleSignOut}>
+              Sign out
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={() => openSignIn()}>
+            Sign in
+          </button>
+        )}
+      </div>
+
+      <AuthDialog open={authOpen} reason={authReason} onClose={() => setAuthOpen(false)} />
+
       {error && (
         <div className="toast toast-error" role="alert">
           {error}
@@ -179,20 +336,31 @@ export default function App() {
       )}
 
       {!form && !error && spots.length === 0 && (
-        <div className="hint">Click anywhere on the map to add the first herb spot</div>
+        <div className="hint">
+          {session ? "Click anywhere on the map to add the first herb spot" : "Sign in to add the first herb spot"}
+        </div>
       )}
 
       {form && (
-        <form className="panel" onSubmit={handleSubmit}>
+        <form
+          className="panel"
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !submitting) setForm(null);
+          }}
+        >
           <h2>
-            Add herb spot <span className="coords">({form.lat}, {form.lng})</span>
+            {editing ? "Edit herb spot" : "Add herb spot"}{" "}
+            <span className="coords">
+              ({form.lat}, {form.lng})
+            </span>
           </h2>
           <label>
             Name
             <input
               autoFocus
               required
-              maxLength={100}
+              maxLength={NAME_MAX}
               id="spot-name"
               name="spot-name"
               autoComplete="off"
@@ -205,7 +373,7 @@ export default function App() {
           <label>
             Description <span className="optional">(optional)</span>
             <textarea
-              maxLength={1000}
+              maxLength={DESCRIPTION_MAX}
               rows={3}
               placeholder="Which herb? Public or ask first? Best time to visit…"
               value={form.description}
@@ -240,7 +408,7 @@ export default function App() {
               Cancel
             </button>
             <button type="submit" disabled={submitting}>
-              {submitting ? "Adding…" : "Add spot"}
+              {submitting ? (editing ? "Saving…" : "Adding…") : editing ? "Save changes" : "Add spot"}
             </button>
           </div>
         </form>

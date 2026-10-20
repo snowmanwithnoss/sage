@@ -1,0 +1,4 @@
+# Copy to .dev.vars (gitignored) for `wrangler dev`.
+# Generate a secret with: openssl rand -base64 32
+BETTER_AUTH_SECRET=replace-me-with-a-long-random-string
+BETTER_AUTH_URL=http://localhost:8787

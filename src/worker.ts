@@ -1,4 +1,5 @@
-import { app, type Env } from "./api";
+import { app } from "./api";
+import type { Env } from "./env";
 
 export default {
   fetch: (request: Request, env: Env, ctx: ExecutionContext) =>

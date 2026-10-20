@@ -8,6 +8,7 @@ communal mint patch? Drop a pin so neighbours can visit.
 - **Cloudflare Workers** — Hono API + static asset hosting
 - **Cloudflare D1** — SQLite storage
 - **Vite + React** — single-page app
+- **Better Auth** — email + password accounts, sessions in D1
 - **MapLibre GL JS** — map with free OpenStreetMap raster tiles (no API keys)
 
 ## Prerequisites
@@ -20,6 +21,13 @@ communal mint patch? Drop a pin so neighbours can visit.
 
 ```sh
 npm install
+
+# Local secrets for `wrangler dev` (gitignored). Put a long random string in
+# BETTER_AUTH_SECRET, e.g. from `openssl rand -base64 32`.
+cp .dev.vars.example .dev.vars
+
+# Create the local D1 database tables
+npx wrangler d1 migrations apply sage --local
 ```
 
 ## Development
@@ -34,7 +42,12 @@ npm run dev:api
 npm run dev:web
 ```
 
-Open http://localhost:5173. Click the map to add a spot.
+Open http://localhost:5173. Anyone can browse; sign in (or create an account)
+to add spots, and edit/delete your own from their popups.
+
+Schema changes go in a new numbered file in `migrations/`
+(`npx wrangler d1 migrations create sage <name>`), then
+`npx wrangler d1 migrations apply sage --local`.
 
 ## Type checking & build
 
@@ -48,14 +61,18 @@ npm run build   # typechecks server + web, then builds SPA to dist/client
 # 1. Create the D1 database (once) and copy the database_id from the output
 npx wrangler d1 create sage
 
-# 2. Paste the id into wrangler.jsonc (d1_databases[].database_id)
+# 2. Paste the id into wrangler.jsonc (d1_databases[].database_id) and set
+#    vars.BETTER_AUTH_URL to the public URL of the app
 
-# 3. Apply the schema (locally and/or remotely — the --remote copy is what
-#    production uses)
-npx wrangler d1 execute sage --local --file=schema.sql
-npx wrangler d1 execute sage --remote --file=schema.sql
+# 3. Set the auth secret (once; a long random string)
+npx wrangler secret put BETTER_AUTH_SECRET
 
-# 4. Build and deploy
+# 4. Apply pending migrations to the production database.
+#    Check what's pending first:  npx wrangler d1 migrations list sage --remote
+#    (Note: 0003 drops and recreates the spots table, deleting existing spots.)
+npx wrangler d1 migrations apply sage --remote
+
+# 5. Build and deploy
 npm run build
 npx wrangler deploy
 ```
@@ -63,8 +80,9 @@ npx wrangler deploy
 ## Project layout
 
 ```
-src/          Worker: Hono app (/api/*) + entry
-web/          Vite + React SPA (MapLibre map)
-schema.sql    D1 schema (spots table)
-wrangler.jsonc  Worker config: assets, /api/* routing, D1 binding DB
+src/          Worker: Hono app (/api/*), Better Auth setup, entry
+web/          Vite + React SPA (MapLibre map, sign-in dialog)
+shared/       Types/constants used by both src/ and web/
+migrations/   D1 migrations (spots + Better Auth tables)
+wrangler.jsonc  Worker config: assets, /api/* routing, D1 binding DB, vars
 ```

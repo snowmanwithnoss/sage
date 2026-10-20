@@ -268,3 +268,115 @@ body,
   background: #b3261e;
   color: #fff;
 }
+
+/* ---- account ---- */
+
+.account {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  padding: 6px 6px 6px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.15);
+  font-size: 0.85rem;
+}
+
+.account:empty {
+  display: none;
+}
+
+.account-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+  color: #333;
+}
+
+.account button {
+  font: inherit;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: #2f5d34;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* ---- auth dialog ---- */
+
+.auth-dialog {
+  padding: 0;
+  border: none;
+  background: transparent;
+  width: min(420px, calc(100% - 24px));
+  max-width: none;
+}
+
+.auth-dialog::backdrop {
+  background: rgb(0 0 0 / 0.35);
+}
+
+.panel.panel-dialog {
+  position: static;
+  max-width: none;
+}
+
+.dialog-reason {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #4b5d3f;
+}
+
+.form-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #b3261e;
+}
+
+.panel .actions {
+  flex-wrap: wrap;
+}
+
+.panel button.link-btn {
+  margin-right: auto;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  color: #2f5d34;
+  text-decoration: underline;
+}
+
+/* ---- own spots ---- */
+
+.marker.marker-mine {
+  background: #b5651d;
+}
+
+.popup-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.popup-actions button {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+}
+
+.popup-actions button.danger-action {
+  border-color: #b3261e;
+  color: #b3261e;
+}
