@@ -1,6 +1,6 @@
 # Roadmap: future refinements
 
-Ideas Rudi has parked for later. Sage is a personal, non-commercial proof of concept. Each idea has a short technical note to start from. Nothing here is scheduled yet.
+Ideas Rudi has parked for later. Sage is a personal, non-commercial proof of concept. Each idea has a short technical note to start from. Items 1–4 shipped 2026-10-21 (see AGENTS.md); item 5 is still parked.
 
 ## 1. Open the spot in Google Maps / Street View
 
