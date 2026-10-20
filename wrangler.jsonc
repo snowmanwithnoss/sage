@@ -22,5 +22,12 @@
       "database_id": "35bac70f-d1c7-4539-b271-06c02a4e82ff",
       "migrations_dir": "migrations"
     }
+  ],
+  // Spot photos (full + thumb per photo). Free plan: 1 GB, 1,000 writes/day.
+  "kv_namespaces": [
+    {
+      "binding": "PHOTOS",
+      "id": "f6120817ba914b72ad2dad6ff43400d0"
+    }
   ]
 }
