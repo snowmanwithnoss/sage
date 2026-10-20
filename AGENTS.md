@@ -13,6 +13,8 @@ See [README.md](./README.md) for setup/dev/deploy commands.
   - `src/components/` — `SearchBar` (client-side herb search), `AccountButton`, `BottomSheet` (pointer-event draggable sheet; left card on ≥768px), `SpotDetails`, `SpotForm`, `DangerPicker`, `MapControls` (locate, compass, "+ Add herb" FAB), `PlacementOverlay` (centre-pin placement mode), `Snackbar`, `AuthDialog`, `icons`
   - `src/lib/` — `hooks.ts` (media queries, colour scheme), `format.ts` (danger labels, distance, URLs)
   - Adding a spot: FAB → move map under centre pin → confirm, or long-press. Plain map taps never add. `?spot=<id>` deep-links select a spot
+  - Vicmap overlay (Reservoir only): `sageMapStyle(theme, { vicmap })` adds lot lines (below buildings, from z15.5) and official street numbers, which replace OSM `housenumber` inside the Reservoir outline via a `within` filter. `useMap` turns `vicmap` on once (one-way) the first time the view is z≥14 and overlaps the Reservoir bbox (`vicmapInView` in `basemap.ts`); later `setStyle` diffs keep the GeoJSON sources, so theme swaps don't refetch. `reservoirArea.ts` is generated
+- `scripts/vicmap/fetch-reservoir.ts` — `npm run data:vicmap` (`-- --fresh` to re-download). Fetches Vicmap Property/Address/Admin for Reservoir from the open WFS (opendata.maps.vic.gov.au, CC BY 4.0, no account) → `web/public/data/vicmap/reservoir-{parcels,addresses}.json` + `web/src/map/reservoirArea.ts`. Raw pages cached in `.cache/vicmap/`. Runs on Node 24 type stripping (erasable TS only), typechecked via `tsconfig.scripts.json`. Unit addresses collapse to the base number, deduped per number+street within 60 m; addresses kept inside the outline, lots within 200 m of it
 - `shared/` — `Spot` type + danger/length constants imported by both `src/` and `web/` (included in both tsconfigs)
 - `migrations/` — D1 migrations (`wrangler d1 migrations apply sage --local|--remote`); database "sage", binding `DB`. `0002` is Better Auth's generated schema — regenerate + add a new migration when upgrading Better Auth or adding plugins
 - Config: `BETTER_AUTH_URL` var in `wrangler.jsonc`, `BETTER_AUTH_SECRET` wrangler secret (`.dev.vars` locally, see `.dev.vars.example`); `nodejs_compat` flag needed by Better Auth
@@ -39,6 +41,11 @@ See [README.md](./README.md) for setup/dev/deploy commands.
 - One snackbar at a time, no queue; mobile action chips row scrolls sideways
 - Danger picker uses `role=radiogroup` without arrow-key nav — swap to visually-hidden native radios if we care
 - Delete uses `window.confirm` — fine for now, replace with an in-app dialog if styling matters
+
+- Vicmap lots/numbers are a Reservoir-only POC, snapshot 2026-10-20 (`VICMAP_SNAPSHOT`). Refresh with `npm run data:vicmap -- --fresh` and commit. Lot lines stop ~200 m past the suburb boundary. Keep the CC BY attribution ("Contains Vicmap Property and Vicmap Address data © State of Victoria (Department of Transport and Planning)") if the data moves
+- Vicmap data ships as static GeoJSON (~1.8 MB gzipped) parsed client-side — won't scale past a suburb or two. Scaling path: tippecanoe → PMTiles for Victoria on R2, served through the Worker; then drop per-suburb JSON and the `within` swap. Default start view is in Reservoir, so first visits download it
+- Large complex sites (villages, deep unit blocks) can repeat their base number; if the Vicmap JSON fails to load, Reservoir has no house numbers (OSM ones are hidden)
+- Satellite toggle parked: Vicmap Basemaps aerial (`AERIAL_WM_256`, max z20, CORS ok, excellent) needs a paid DTP subscription — not CC BY. No free keyless open imagery covers Reservoir. Free-with-account options: ArcGIS Location Platform free tier (2M tiles/mo, pay-as-you-go off by default — verify imagery is included), or ask vicmap@transport.vic.gov.au about a community licence. Rudi doesn't want to pay yet
 
 ## Conventions
 
