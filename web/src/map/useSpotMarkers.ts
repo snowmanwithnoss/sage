@@ -22,7 +22,7 @@ export function useSpotMarkers(
     for (const m of markers.values()) m.remove();
     markers.clear();
     for (const spot of spots) {
-      const el = markerElement(spot.is_mine, spot.id === selectedRef.current ? "marker-selected" : "");
+      const el = markerElement(spot.id === selectedRef.current ? "marker-selected" : "");
       el.title = spot.name;
       // The map-level tap handler ignores taps on `.marker`, so this click
       // only selects the spot (it doesn't also dismiss the sheet).
@@ -65,7 +65,7 @@ export function useDraftMarker(map: maplibregl.Map | null, position: { lat: numb
   const lng = position?.lng;
   useEffect(() => {
     if (!map || lat === undefined || lng === undefined) return;
-    const el = markerElement(true, "marker-draft marker-selected");
+    const el = markerElement("marker-draft marker-selected");
     const marker = new maplibregl.Marker({ element: el, anchor: "bottom", offset: MARKER_OFFSET })
       .setLngLat([lng, lat])
       .addTo(map);

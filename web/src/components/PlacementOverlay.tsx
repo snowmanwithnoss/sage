@@ -40,7 +40,7 @@ export default function PlacementOverlay({ map, onCancel, onConfirm }: Props) {
       </div>
       <div className={`placement-pin${moving ? " lifted" : ""}`} aria-hidden>
         <div className="placement-shadow" />
-        <div className="placement-marker marker marker-mine" dangerouslySetInnerHTML={{ __html: markerSvg(56) }} />
+        <div className="placement-marker marker" dangerouslySetInnerHTML={{ __html: markerSvg(56) }} />
       </div>
       <div className="placement-bar">
         <p className="placement-coords">{formatCoords(center.lat, center.lng)}</p>

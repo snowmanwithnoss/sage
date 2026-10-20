@@ -11,10 +11,9 @@
   --on-primary: #ffffff;
   --primary-container: #d3ead2;
   --on-primary-container: #10381a;
-  --mine: #b5651d;
   /* Map pins: dark enough to pop on the pastel park greens. */
   --marker-other: #2a5a31;
-  --marker-mine: #b5651d;
+  --marker-selected: #1d4423;
 
   --surface: #ffffff;
   --surface-2: #f2f5f0;
@@ -57,10 +56,9 @@
     --on-primary: #0b2e14;
     --primary-container: #24432e;
     --on-primary-container: #cdeccc;
-    --mine: #e59a55;
     /* Brighter than the dark park fill (#1f3a31) so pins don't sink into it. */
     --marker-other: #3f8a4c;
-    --marker-mine: #c8742a;
+    --marker-selected: #2c6b38;
 
     --surface: #222832;
     --surface-2: #2a313c;
@@ -382,9 +380,6 @@ button {
   fill: var(--marker-other);
 }
 
-.result-icon.mine .marker-body {
-  fill: var(--marker-mine);
-}
 
 .result-text {
   display: flex;
@@ -700,20 +695,39 @@ button.avatar::after {
   fill: currentColor;
 }
 
-.marker.marker-mine {
-  color: var(--marker-mine);
-}
-
+/* Every herb is the same green; the selected one is bigger and deeper green. */
 .marker.marker-selected svg {
   transform: scale(1.45);
 }
 
 .marker.marker-selected {
+  color: var(--marker-selected);
   filter: drop-shadow(0 3px 5px rgb(0 0 0 / 0.45));
 }
 
+/* The pin of a spot being added: translucent green with a ground dot, so it
+   reads as "not saved yet". */
 .marker-draft {
+  position: relative;
   pointer-events: none;
+}
+
+.marker.marker-draft svg {
+  opacity: 0.8;
+}
+
+.marker-draft::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(89.7% - 5px);
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--marker-other);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
 }
 
 .marker-draft svg {
@@ -914,8 +928,8 @@ button.avatar::after {
   margin-left: 2px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--mine) 16%, transparent);
-  color: var(--mine);
+  background: var(--primary-container);
+  color: var(--on-primary-container);
   font-size: 12px;
   font-weight: 600;
 }
@@ -1362,7 +1376,7 @@ button.avatar::after {
   height: 10px;
   border-radius: 50%;
   border: 2px solid #fff;
-  background: var(--mine);
+  background: var(--marker-other);
   box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
   opacity: 0;
   transition: opacity 0.15s;

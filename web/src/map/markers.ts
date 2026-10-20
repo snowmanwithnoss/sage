@@ -1,5 +1,6 @@
 // Map pin: guitar-pick body with an upward sage sprout. Static markup (no
-// user data). The body colour comes from CSS (.marker-body / .marker-mine).
+// user data). The body colour comes from CSS (.marker / .marker-selected): every
+// herb is the same green, whoever added it.
 const LEAF = "M0-10C4.5-5 4.5 5 0 10-4.5 5-4.5-5 0-10Z";
 
 export function markerSvg(size = 32): string {
@@ -26,9 +27,9 @@ export function markerSvg(size = 32): string {
 export const MARKER_TIP_FRACTION = 61 / 68;
 export const MARKER_OFFSET: [number, number] = [0, 3];
 
-export function markerElement(mine: boolean, extraClass = ""): HTMLElement {
+export function markerElement(extraClass = ""): HTMLElement {
   const el = document.createElement("div");
-  el.className = ["marker", mine ? "marker-mine" : "", extraClass].filter(Boolean).join(" ");
+  el.className = ["marker", extraClass].filter(Boolean).join(" ");
   el.innerHTML = markerSvg();
   return el;
 }
