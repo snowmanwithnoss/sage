@@ -20,6 +20,7 @@ See [README.md](./README.md) for setup/dev/deploy commands.
 - Config: `BETTER_AUTH_URL` var in `wrangler.jsonc`, `BETTER_AUTH_SECRET` wrangler secret (`.dev.vars` locally, see `.dev.vars.example`); `nodejs_compat` flag needed by Better Auth
 - Single root `package.json`; `npm run build` typechecks (strict) both tsconfigs then builds SPA to `dist/client/`
 - Auth design decisions: [docs/auth-plan.md](./docs/auth-plan.md)
+- Parked future ideas (Street View link, green markers, spot tags, address search, fuzzy herb search/categories): [docs/roadmap.md](./docs/roadmap.md)
 
 ## Known tech debt / next up
 
