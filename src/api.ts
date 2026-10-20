@@ -10,9 +10,12 @@ import {
   PHOTO_FULL_MAX_BYTES,
   PHOTO_THUMB_MAX_BYTES,
   PHOTOS_MAX,
+  SPOT_TAGS,
+  isSpotTag,
   type Spot,
   type SpotInput,
   type SpotPhoto,
+  type SpotTag,
 } from "../shared/spot";
 import { createAuth } from "./auth";
 import type { Env } from "./env";
@@ -41,11 +44,32 @@ const requireUser: MiddlewareHandler<AppEnv> = async (c, next) => {
 
 // ---- spots ----
 
-type SpotRow = Omit<Spot, "is_mine" | "photos"> & { user_id: string };
+type SpotRow = Omit<Spot, "is_mine" | "photos" | "tags"> & { user_id: string; tags: string };
 
 function toSpot(row: SpotRow, userId: string | null, photos: SpotPhoto[] = []): Spot {
-  const { user_id, ...rest } = row;
-  return { ...rest, is_mine: userId !== null && user_id === userId, photos };
+  const { user_id, tags, ...rest } = row;
+  return { ...rest, is_mine: userId !== null && user_id === userId, photos, tags: parseStoredTags(tags) };
+}
+
+/** The tags column is a JSON array; tolerate anything odd by dropping it. */
+function parseStoredTags(value: string): SpotTag[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? SPOT_TAGS.filter((t) => parsed.includes(t)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Validates optional tags: an array of known keys. Returns them deduped in SPOT_TAGS order. */
+function parseTags(value: unknown): SpotTag[] | undefined | string {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > SPOT_TAGS.length) {
+    return `tags must be an array of at most ${SPOT_TAGS.length} of: ${SPOT_TAGS.join(", ")}`;
+  }
+  const unknown = value.find((t) => !isSpotTag(t));
+  if (unknown !== undefined) return `unknown tag: ${JSON.stringify(unknown)?.slice(0, 40) ?? "?"}`;
+  return SPOT_TAGS.filter((t) => value.includes(t));
 }
 
 type PhotoRow = SpotPhoto & { spot_id: string };
@@ -78,7 +102,7 @@ async function deletePhotoBlobs(kv: KVNamespace, photoIds: string[]): Promise<vo
 
 /** Validates a create/update body. Returns the cleaned input or an error message. */
 function parseSpotInput(body: unknown): SpotInput | string {
-  const { name, description, lat, lng, danger } = (body ?? {}) as Record<string, unknown>;
+  const { name, description, lat, lng, danger, tags } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof name !== "string" || name.trim().length === 0 || name.trim().length > NAME_MAX) {
     return `name is required (max ${NAME_MAX} characters)`;
@@ -102,7 +126,9 @@ function parseSpotInput(body: unknown): SpotInput | string {
   ) {
     return `danger must be an integer between ${DANGER_MIN} and ${DANGER_MAX}`;
   }
-  return { name: name.trim(), description: desc, lat, lng, danger: danger ?? DANGER_DEFAULT };
+  const cleanTags = parseTags(tags);
+  if (typeof cleanTags === "string") return cleanTags;
+  return { name: name.trim(), description: desc, lat, lng, danger: danger ?? DANGER_DEFAULT, tags: cleanTags };
 }
 
 async function readJson(req: Request): Promise<unknown | undefined> {
@@ -113,7 +139,7 @@ async function readJson(req: Request): Promise<unknown | undefined> {
   }
 }
 
-const SPOT_COLUMNS = "id, user_id, name, description, lat, lng, danger, created_at";
+const SPOT_COLUMNS = "id, user_id, name, description, lat, lng, danger, tags, created_at";
 
 // Defence in depth on top of SameSite=Lax session cookies: reject cross-origin
 // form-style posts (the only cross-site requests that skip CORS preflight).
@@ -140,19 +166,22 @@ app.post("/api/spots", requireUser, async (c) => {
 
   const id = crypto.randomUUID();
   const created_at = new Date().toISOString();
+  const tags = input.tags ?? [];
 
   await c.env.DB.prepare(
-    "INSERT INTO spots (id, user_id, name, description, lat, lng, danger, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO spots (id, user_id, name, description, lat, lng, danger, tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
   )
-    .bind(id, user.id, input.name, input.description, input.lat, input.lng, input.danger, created_at)
+    .bind(id, user.id, input.name, input.description, input.lat, input.lng, input.danger, JSON.stringify(tags), created_at)
     .run();
 
-  const spot: Spot = { id, ...input, created_at, is_mine: true, photos: [] };
+  const spot: Spot = { id, ...input, tags, created_at, is_mine: true, photos: [] };
   return c.json(spot, 201);
 });
 
-// Full replace of the editable fields (same validation as POST). Only the
-// owner can update; anyone else gets 404 so we don't reveal which ids exist.
+// Full replace of the editable fields (same validation as POST), except that
+// omitted `tags` keep their current value (so an older client can't wipe
+// them). Only the owner can update; anyone else gets 404 so we don't reveal
+// which ids exist.
 app.patch("/api/spots/:id", requireUser, async (c) => {
   const user = c.get("user")!;
   const body = await readJson(c.req.raw);
@@ -161,10 +190,19 @@ app.patch("/api/spots/:id", requireUser, async (c) => {
   if (typeof input === "string") return c.json({ error: input }, 400);
 
   const row = await c.env.DB.prepare(
-    `UPDATE spots SET name = ?, description = ?, lat = ?, lng = ?, danger = ?
+    `UPDATE spots SET name = ?, description = ?, lat = ?, lng = ?, danger = ?, tags = COALESCE(?, tags)
      WHERE id = ? AND user_id = ? RETURNING ${SPOT_COLUMNS}`
   )
-    .bind(input.name, input.description, input.lat, input.lng, input.danger, c.req.param("id"), user.id)
+    .bind(
+      input.name,
+      input.description,
+      input.lat,
+      input.lng,
+      input.danger,
+      input.tags ? JSON.stringify(input.tags) : null,
+      c.req.param("id"),
+      user.id
+    )
     .first<SpotRow>();
 
   if (!row) return c.json({ error: "Spot not found" }, 404);

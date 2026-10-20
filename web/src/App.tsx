@@ -10,7 +10,7 @@ import PlacementOverlay from "./components/PlacementOverlay";
 import SearchBar from "./components/SearchBar";
 import Snackbar, { type SnackbarMessage } from "./components/Snackbar";
 import { SpotBody, SpotHeader } from "./components/SpotDetails";
-import { SpotFormFields, SpotFormFooter, SpotFormHeader, type FormState } from "./components/SpotForm";
+import { initialTags, SpotFormFields, SpotFormFooter, SpotFormHeader, type FormState } from "./components/SpotForm";
 import { spotUrl } from "./lib/format";
 import { prefersReducedMotion, useColorScheme, useIsDesktop } from "./lib/hooks";
 import { initialPhotos, releasePhotos, usePhotoUploads } from "./lib/usePhotoUploads";
@@ -203,6 +203,7 @@ export default function App() {
       name: "",
       description: "",
       danger: DANGER_DEFAULT,
+      ...initialTags(),
       ...initialPhotos(),
     });
     focusOn(lngLat.lng, lngLat.lat);
@@ -253,6 +254,7 @@ export default function App() {
       name: spot.name,
       description: spot.description,
       danger: spot.danger,
+      ...initialTags(spot),
       ...initialPhotos(spot),
     });
   };
@@ -301,6 +303,7 @@ export default function App() {
       lat: form.lat,
       lng: form.lng,
       danger: form.danger,
+      tags: form.tags,
     };
     const editing = form.id !== undefined;
     try {

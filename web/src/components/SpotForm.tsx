@@ -1,8 +1,9 @@
-import { DESCRIPTION_MAX, NAME_MAX } from "../api";
+import { DANGER_DEFAULT, DESCRIPTION_MAX, NAME_MAX, SPOT_TAGS, suggestDanger, type Spot, type SpotTag } from "../api";
 import { formatCoords } from "../lib/format";
 import type { PhotoFormState } from "../lib/usePhotoUploads";
 import DangerPicker from "./DangerPicker";
 import PhotoPicker from "./PhotoPicker";
+import TagPicker from "./TagPicker";
 
 /** `id` set means editing that spot; otherwise adding a new one. */
 export type FormState = PhotoFormState & {
@@ -12,7 +13,26 @@ export type FormState = PhotoFormState & {
   name: string;
   description: string;
   danger: number;
+  tags: SpotTag[];
+  /** True until the user picks a danger rating themselves: tags may suggest one meanwhile. */
+  dangerAuto: boolean;
 };
+
+/** Initial tag state for the add (no spot) or edit form. */
+export function initialTags(spot?: Spot): Pick<FormState, "tags" | "dangerAuto"> {
+  if (!spot) return { tags: [], dangerAuto: true };
+  // Keep following the tags only if the saved rating is what they'd suggest
+  // (i.e. the owner never overrode it); otherwise respect their pick.
+  return { tags: spot.tags, dangerAuto: spot.tags.length > 0 && suggestDanger(spot.tags) === spot.danger };
+}
+
+/** Toggles a tag; while the danger is still automatic, follows the tags' suggestion. */
+function toggleTag(form: FormState, tag: SpotTag): FormState {
+  const has = form.tags.includes(tag);
+  const tags = SPOT_TAGS.filter((t) => (t === tag ? !has : form.tags.includes(t)));
+  const danger = form.dangerAuto ? (suggestDanger(tags) ?? DANGER_DEFAULT) : form.danger;
+  return { ...form, tags, danger };
+}
 
 const FORM_ID = "spot-form";
 
@@ -78,7 +98,12 @@ export function SpotFormFields({
           onChange={(e) => onChange({ ...form, description: e.target.value })}
         />
       </label>
-      <DangerPicker value={form.danger} onChange={(danger) => onChange({ ...form, danger })} />
+      <TagPicker value={form.tags} onToggle={(tag) => onChange(toggleTag(form, tag))} />
+      <DangerPicker
+        value={form.danger}
+        onChange={(danger) => onChange({ ...form, danger, dangerAuto: false })}
+        hint={form.dangerAuto && form.tags.length > 0 ? "Suggested from heads-up tags" : undefined}
+      />
       <PhotoPicker
         photos={form.photos}
         error={form.photoError}

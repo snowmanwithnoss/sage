@@ -1,8 +1,18 @@
 import type { Spot, SpotInput, SpotPhoto } from "../../shared/spot";
 import type { ProcessedPhoto } from "./lib/images";
 
-export type { Spot, SpotInput, SpotPhoto } from "../../shared/spot";
-export { DANGER_DEFAULT, DANGER_MAX, DANGER_MIN, NAME_MAX, DESCRIPTION_MAX, PHOTOS_MAX } from "../../shared/spot";
+export type { Spot, SpotInput, SpotPhoto, SpotTag } from "../../shared/spot";
+export {
+  DANGER_DEFAULT,
+  DANGER_MAX,
+  DANGER_MIN,
+  NAME_MAX,
+  DESCRIPTION_MAX,
+  PHOTOS_MAX,
+  SPOT_TAGS,
+  SPOT_TAG_LABELS,
+  suggestDanger,
+} from "../../shared/spot";
 
 /** An API failure; `status` lets callers react to e.g. 401 (session expired). */
 export class ApiError extends Error {

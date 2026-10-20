@@ -12,6 +12,7 @@ import {
 import { DangerPeppers } from "./DangerPicker";
 import { CalendarIcon, DeleteIcon, DirectionsIcon, EditIcon, PlaceIcon, ShareIcon, StreetViewIcon } from "./icons";
 import PhotoViewer from "./PhotoViewer";
+import { TagList } from "./TagPicker";
 
 type HeaderProps = {
   spot: Spot;
@@ -39,6 +40,7 @@ export function SpotHeader({ spot, userPosition, onShare, onEdit, onDelete }: He
           )}
           {spot.is_mine && <span className="badge">Your spot</span>}
         </p>
+        <TagList tags={spot.tags} />
       </div>
       <div className="chip-row">
         <a className="chip chip-primary" href={directionsUrl(spot.lat, spot.lng)} target="_blank" rel="noopener noreferrer">

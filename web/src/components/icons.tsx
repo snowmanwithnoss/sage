@@ -112,3 +112,37 @@ export const ChevronRightIcon = make("M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l
 export const RetryIcon = make(
   "M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
 );
+
+// ---- heads-up tag icons (same 24px grid, filled) ----
+
+function makeEvenOdd(path: string) {
+  return function Icon({ size = 24, className }: IconProps) {
+    return (
+      <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" focusable="false">
+        <path d={path} fill="currentColor" fillRule="evenodd" />
+      </svg>
+    );
+  };
+}
+
+/** Paw print. */
+export const DogIcon = make(
+  "M2.3 10.5a2.2 2.2 0 1 0 4.4 0 2.2 2.2 0 1 0-4.4 0zM6.8 6.5a2.2 2.2 0 1 0 4.4 0 2.2 2.2 0 1 0-4.4 0zM12.8 6.5a2.2 2.2 0 1 0 4.4 0 2.2 2.2 0 1 0-4.4 0zM17.3 10.5a2.2 2.2 0 1 0 4.4 0 2.2 2.2 0 1 0-4.4 0zM12 11.5c-2.5 0-4 2.2-5.5 4.2C5.3 17.2 5.6 20.5 8 20.5c1.5 0 2.5-.6 4-.6s2.5.6 4 .6c2.4 0 2.7-3.3 1.5-4.8-1.5-2-3-4.2-5.5-4.2z"
+);
+/** Three pickets and two rails. */
+export const FenceIcon = make(
+  "M4.5 6 6.5 3.5 8.5 6v14h-4zM10 6l2-2.5L14 6v14h-4zM15.5 6l2-2.5 2 2.5v14h-4zM2.5 8.5h19v2h-19zM2.5 14.5h19v2h-19z"
+);
+export const CameraIcon = make(
+  "M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"
+);
+/** Speech bubble with a question mark. */
+export const AskIcon = makeEvenOdd(
+  "M4 2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2zm7 11v2h2v-2zm1-8a3.4 3.4 0 0 0-3.4 3.2h1.9c0-.8.7-1.4 1.5-1.4s1.5.6 1.5 1.4c0 .5-.2.8-.6 1.1l-.9.8c-.7.6-1 1.2-1 2.2v.2h2c0-.8.2-1.1.7-1.6l.8-.7c.6-.6.9-1.2.9-2A3.4 3.4 0 0 0 12 5z"
+);
+/** Walking person. */
+export const FootpathIcon = make(
+  "M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9 7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"
+);
+/** A tree (park). */
+export const PublicIcon = make("M17 12h2L12 2 5.05 12H7l-3.9 6h6.92v4h3.95v-4H21l-4-6z");

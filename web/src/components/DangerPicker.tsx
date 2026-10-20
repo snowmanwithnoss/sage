@@ -5,10 +5,12 @@ import { ChiliIcon } from "./icons";
 type Props = {
   value: number;
   onChange: (value: number) => void;
+  /** Small note under the rating, e.g. where a suggested value came from. */
+  hint?: string;
 };
 
 /** 1–5 chilli rating: peppers up to the chosen value light up. */
-export default function DangerPicker({ value, onChange }: Props) {
+export default function DangerPicker({ value, onChange, hint }: Props) {
   return (
     <fieldset className="danger-picker">
       <legend>
@@ -34,6 +36,7 @@ export default function DangerPicker({ value, onChange }: Props) {
       </div>
       <p className="danger-preview" aria-live="polite">
         <strong>{dangerLabel(value)}</strong> · {value}/{DANGER_MAX}
+        {hint && <span className="danger-hint"> · {hint}</span>}
       </p>
     </fieldset>
   );
