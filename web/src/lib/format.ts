@@ -46,6 +46,15 @@ export function directionsUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }
 
+/**
+ * Google Street View at the nearest panorama (free Maps URLs deep link, no
+ * key). The camera won't necessarily face the spot: we don't know where the
+ * panorama is, so we can't compute a `heading`.
+ */
+export function streetViewUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+}
+
 /** Deep link that opens the app with this spot selected (see `?spot=` handling in App). */
 export function spotUrl(id: string): string {
   const url = new URL(window.location.href);

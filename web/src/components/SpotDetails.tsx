@@ -1,8 +1,16 @@
 import { useState } from "react";
 import { photoUrl, type Spot } from "../api";
-import { dangerLabel, directionsUrl, distanceMetres, formatCoords, formatDate, formatDistance } from "../lib/format";
+import {
+  dangerLabel,
+  directionsUrl,
+  distanceMetres,
+  formatCoords,
+  formatDate,
+  formatDistance,
+  streetViewUrl,
+} from "../lib/format";
 import { DangerPeppers } from "./DangerPicker";
-import { CalendarIcon, DeleteIcon, DirectionsIcon, EditIcon, PlaceIcon, ShareIcon } from "./icons";
+import { CalendarIcon, DeleteIcon, DirectionsIcon, EditIcon, PlaceIcon, ShareIcon, StreetViewIcon } from "./icons";
 import PhotoViewer from "./PhotoViewer";
 
 type HeaderProps = {
@@ -36,6 +44,10 @@ export function SpotHeader({ spot, userPosition, onShare, onEdit, onDelete }: He
         <a className="chip chip-primary" href={directionsUrl(spot.lat, spot.lng)} target="_blank" rel="noopener noreferrer">
           <DirectionsIcon size={18} />
           Directions
+        </a>
+        <a className="chip" href={streetViewUrl(spot.lat, spot.lng)} target="_blank" rel="noopener noreferrer">
+          <StreetViewIcon size={18} />
+          Street View
         </a>
         <button type="button" className="chip" onClick={() => onShare(spot)}>
           <ShareIcon size={18} />
