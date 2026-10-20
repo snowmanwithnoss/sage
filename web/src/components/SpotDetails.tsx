@@ -1,7 +1,9 @@
-import type { Spot } from "../api";
+import { useState } from "react";
+import { photoUrl, type Spot } from "../api";
 import { dangerLabel, directionsUrl, distanceMetres, formatCoords, formatDate, formatDistance } from "../lib/format";
 import { DangerPeppers } from "./DangerPicker";
 import { CalendarIcon, DeleteIcon, DirectionsIcon, EditIcon, PlaceIcon, ShareIcon } from "./icons";
+import PhotoViewer from "./PhotoViewer";
 
 type HeaderProps = {
   spot: Spot;
@@ -52,6 +54,42 @@ export function SpotHeader({ spot, userPosition, onShare, onEdit, onDelete }: He
           </>
         )}
       </div>
+      {spot.photos.length > 0 && <PhotoStrip spot={spot} />}
+    </>
+  );
+}
+
+/** Swipeable row of thumbnails; tap one for the full-screen viewer. */
+function PhotoStrip({ spot }: { spot: Spot }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const count = spot.photos.length;
+  return (
+    <>
+      <ul className="photo-strip" aria-label="Photos">
+        {spot.photos.map((p, i) => (
+          <li key={p.id}>
+            <button
+              type="button"
+              className="photo-thumb"
+              aria-label={`Open photo ${i + 1} of ${count}`}
+              onClick={() => setOpen(i)}
+            >
+              <img
+                src={photoUrl(p.id, "thumb")}
+                alt={`${spot.name}, photo ${i + 1}`}
+                width={p.width}
+                height={p.height}
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+              />
+            </button>
+          </li>
+        ))}
+      </ul>
+      {open !== null && (
+        <PhotoViewer photos={spot.photos} start={open} name={spot.name} onClose={() => setOpen(null)} />
+      )}
     </>
   );
 }

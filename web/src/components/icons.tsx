@@ -100,3 +100,11 @@ export function ChiliIcon({ size = 20, className }: IconProps) {
     </svg>
   );
 }
+export const AddPhotoIcon = make(
+  "M3 4V1h2v3h3v2H5v3H3V6H0V4h3zm3 6V7h3V4h7l1.83 2H21c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V10h3zm7 9c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-3.2-5c0 1.77 1.43 3.2 3.2 3.2s3.2-1.43 3.2-3.2-1.43-3.2-3.2-3.2-3.2 1.43-3.2 3.2z"
+);
+export const ChevronLeftIcon = make("M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z");
+export const ChevronRightIcon = make("M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z");
+export const RetryIcon = make(
+  "M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+);

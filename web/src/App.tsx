@@ -13,6 +13,7 @@ import { SpotBody, SpotHeader } from "./components/SpotDetails";
 import { SpotFormFields, SpotFormFooter, SpotFormHeader, type FormState } from "./components/SpotForm";
 import { spotUrl } from "./lib/format";
 import { prefersReducedMotion, useColorScheme, useIsDesktop } from "./lib/hooks";
+import { initialPhotos, releasePhotos, usePhotoUploads } from "./lib/usePhotoUploads";
 import { useMap } from "./map/useMap";
 import { useMapGestures, useMapOrientation } from "./map/useMapGestures";
 import { useDraftMarker, useSpotMarkers } from "./map/useSpotMarkers";
@@ -30,7 +31,15 @@ export default function App() {
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState | null>(null);
+  const [form, setFormState] = useState<FormState | null>(null);
+  // Closing or replacing the form frees its photo preview blobs.
+  const setForm = useCallback((update: FormState | null | ((f: FormState | null) => FormState | null)) => {
+    setFormState((prev) => {
+      const next = typeof update === "function" ? update(prev) : update;
+      if (prev && next === null) releasePhotos(prev);
+      return next;
+    });
+  }, []);
   const [placing, setPlacing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [snack, setSnack] = useState<SnackbarMessage | null>(null);
@@ -42,6 +51,7 @@ export default function App() {
   const sessionState = sessionPending ? "pending" : userId !== null ? "signed-in" : "signed-out";
 
   const selected = spots.find((s) => s.id === selectedId) ?? null;
+  const photoUploads = usePhotoUploads<FormState>(setForm, setSpots);
 
   const notify = useCallback((text: string, kind: SnackbarMessage["kind"] = "info") => {
     setSnack({ id: Date.now(), text, kind });
@@ -187,7 +197,14 @@ export default function App() {
   const openAddForm = (lngLat: { lng: number; lat: number }) => {
     setPlacing(false);
     setSelectedId(null);
-    setForm({ lat: round6(lngLat.lat), lng: round6(lngLat.lng), name: "", description: "", danger: DANGER_DEFAULT });
+    setForm({
+      lat: round6(lngLat.lat),
+      lng: round6(lngLat.lng),
+      name: "",
+      description: "",
+      danger: DANGER_DEFAULT,
+      ...initialPhotos(),
+    });
     focusOn(lngLat.lng, lngLat.lat);
   };
 
@@ -236,6 +253,7 @@ export default function App() {
       name: spot.name,
       description: spot.description,
       danger: spot.danger,
+      ...initialPhotos(spot),
     });
   };
 
@@ -284,18 +302,25 @@ export default function App() {
       lng: form.lng,
       danger: form.danger,
     };
+    const editing = form.id !== undefined;
     try {
-      if (form.id) {
-        const updated = await updateSpot(form.id, input);
-        setSpots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-        notify("Changes saved");
-      } else {
-        const spot = await createSpot(input);
-        setSpots((prev) => [spot, ...prev]);
-        setSelectedId(spot.id);
-        notify("Herb spot added");
+      // 1. The spot itself. It stays saved even if a photo fails below.
+      const spot = form.id ? await updateSpot(form.id, input) : await createSpot(input);
+      setSpots((prev) => (editing ? prev.map((s) => (s.id === spot.id ? spot : s)) : [spot, ...prev]));
+      setSelectedId(spot.id);
+      // From here on the form edits the saved spot (so a retry won't create a duplicate).
+      setForm((f) => f && { ...f, id: spot.id });
+
+      // 2. Photos: removals, then uploads (progress shows on each tile).
+      const failed = await photoUploads.syncPhotos(spot.id, form);
+      if (failed > 0) {
+        const what = failed === 1 ? "a photo" : `${failed} photos`;
+        notify(`Spot saved, but ${what} didn't upload. Tap Retry on the photo, or Cancel to skip it.`, "error");
+        return;
       }
       setForm(null);
+      focusOn(spot.lng, spot.lat); // re-centre above the (now shorter) details sheet
+      notify(editing ? "Changes saved" : "Herb spot added");
     } catch (e) {
       reportError(e, form.id ? "Failed to update spot" : "Failed to add spot");
     } finally {
@@ -334,7 +359,19 @@ export default function App() {
       label: form.id ? "Edit herb spot" : "Add a herb spot",
       header: <SpotFormHeader form={form} />,
       children: (
-        <SpotFormFields form={form} onChange={setForm} onSubmit={handleSubmit} autoFocus={isDesktop} />
+        <SpotFormFields
+          form={form}
+          onChange={setForm}
+          onSubmit={handleSubmit}
+          autoFocus={isDesktop}
+          submitting={submitting}
+          onAddPhotos={(files) => photoUploads.addFiles(files, form)}
+          onRemovePhoto={photoUploads.removeTile}
+          onRetryPhoto={(key) => {
+            const tile = form.photos.find((p) => p.key === key);
+            if (form.id && tile) void photoUploads.uploadTile(form.id, tile);
+          }}
+        />
       ),
       footer: <SpotFormFooter form={form} submitting={submitting} onCancel={cancelForm} />,
       onDismiss: cancelForm,
