@@ -1,0 +1,220 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+.app {
+  position: relative;
+  height: 100%;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---- top bar ---- */
+
+.topbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.15);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+}
+
+.topbar .tagline {
+  color: #4b5d3f;
+  font-size: 0.8rem;
+}
+
+.topbar .count {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #2f5d34;
+  color: #fff;
+  font-size: 0.75rem;
+}
+
+/* ---- markers & popups ---- */
+
+.marker {
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #2f7a3d;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+
+.marker::after {
+  content: "🌿";
+  position: absolute;
+  inset: 0;
+  transform: rotate(45deg);
+  font-size: 10px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.maplibregl-popup-content {
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.popup h3 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.popup p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #444;
+  white-space: pre-line;
+}
+
+/* ---- form panel ---- */
+
+.panel {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 16px;
+  z-index: 10;
+  margin: 0 auto;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  border-radius: 12px;
+  box-shadow: 0 4px 18px rgb(0 0 0 / 0.25);
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.panel .coords {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.panel .optional {
+  font-weight: 400;
+  color: #888;
+}
+
+.panel input,
+.panel textarea {
+  font: inherit;
+  font-weight: 400;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.panel input:focus,
+.panel textarea:focus {
+  outline: 2px solid #2f7a3d;
+  border-color: transparent;
+}
+
+.panel .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.panel button {
+  font: inherit;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.panel button[type="submit"] {
+  background: #2f5d34;
+  color: #fff;
+}
+
+.panel button[type="submit"]:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.panel button[type="button"] {
+  background: transparent;
+  border-color: #ccc;
+  color: #333;
+}
+
+/* ---- hint & toast ---- */
+
+.hint,
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.hint {
+  background: rgba(255, 255, 255, 0.92);
+  color: #333;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.15);
+}
+
+.toast-error {
+  background: #b3261e;
+  color: #fff;
+}
