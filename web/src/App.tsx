@@ -12,10 +12,12 @@ import Snackbar, { type SnackbarMessage } from "./components/Snackbar";
 import { SpotBody, SpotHeader } from "./components/SpotDetails";
 import { SpotFormFields, SpotFormFooter, SpotFormHeader, type FormState } from "./components/SpotForm";
 import { spotUrl } from "./lib/format";
+import type { Place } from "./lib/places";
 import { prefersReducedMotion, useColorScheme, useIsDesktop } from "./lib/hooks";
 import { initialPhotos, releasePhotos, usePhotoUploads } from "./lib/usePhotoUploads";
 import { useMap } from "./map/useMap";
 import { useMapGestures, useMapOrientation } from "./map/useMapGestures";
+import { usePlaceMarker } from "./map/usePlaceMarker";
 import { useDraftMarker, useSpotMarkers } from "./map/useSpotMarkers";
 import { useUserLocation } from "./map/useUserLocation";
 
@@ -41,6 +43,8 @@ export default function App() {
     });
   }, []);
   const [placing, setPlacing] = useState(false);
+  /** A searched address/place, shown as a temporary marker until something else is picked. */
+  const [place, setPlace] = useState<Place | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [snack, setSnack] = useState<SnackbarMessage | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -155,12 +159,26 @@ export default function App() {
     (spot: Spot, opts: { fly?: boolean } = {}) => {
       setPlacing(false);
       setForm(null);
+      setPlace(null);
       setSelectedId(spot.id);
       const zoom = map ? (opts.fly ? Math.max(map.getZoom(), 16) : Math.max(map.getZoom(), 14)) : undefined;
       focusOn(spot.lng, spot.lat, { zoom, fly: opts.fly });
     },
     [map, focusOn]
   );
+
+  const selectPlace = (p: Place) => {
+    if (!map) return;
+    setSelectedId(null);
+    setPlace(p);
+    let zoom = p.zoom;
+    if (p.bbox && p.kind !== "address") {
+      const [w, s, e, n] = p.bbox;
+      const fit = map.cameraForBounds([w, s, e, n], { padding: 60 })?.zoom;
+      if (fit !== undefined) zoom = Math.max(11, Math.min(fit, p.zoom));
+    }
+    focusOn(p.lng, p.lat, { zoom, fly: true });
+  };
 
   // A `?spot=<id>` deep link, read once before the URL sync below can clear it.
   const deepLinkId = useRef(new URL(window.location.href).searchParams.get("spot"));
@@ -196,6 +214,7 @@ export default function App() {
 
   const openAddForm = (lngLat: { lng: number; lat: number }) => {
     setPlacing(false);
+    setPlace(null);
     setSelectedId(null);
     setForm({
       lat: round6(lngLat.lat),
@@ -212,6 +231,7 @@ export default function App() {
     if (!map || !canAdd()) return;
     setSelectedId(null);
     setForm(null);
+    setPlace(null);
     setPlacing(true);
     // A leftover info toast ("Link copied") would sit over the placement bar.
     setSnack((s) => (s?.kind === "info" ? null : s));
@@ -227,6 +247,7 @@ export default function App() {
     selectSpot(spot);
   });
   useDraftMarker(map, form && form.id === undefined ? form : null);
+  usePlaceMarker(map, place);
 
   useMapGestures(map, {
     onTap: () => {
@@ -409,6 +430,8 @@ export default function App() {
         <SearchBar
           spots={spots}
           onPick={(spot) => selectSpot(spot, { fly: true })}
+          onPickPlace={selectPlace}
+          onClear={() => setPlace(null)}
           getOrigin={() => {
             if (location.position) return location.position;
             const c = map?.getCenter();
