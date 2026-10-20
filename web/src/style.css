@@ -65,24 +65,19 @@ body,
 /* ---- markers & popups ---- */
 
 .marker {
-  width: 22px;
-  height: 22px;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  background: #2f7a3d;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 6px rgb(0 0 0 / 0.35);
+  width: 32px;
+  height: 32px;
+  color: #2f5d34;
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.4));
   cursor: pointer;
 }
 
-.marker::after {
-  content: "🌿";
-  position: absolute;
-  inset: 0;
-  transform: rotate(45deg);
-  font-size: 10px;
-  line-height: 18px;
-  text-align: center;
+.marker svg {
+  display: block;
+}
+
+.marker .marker-body {
+  fill: currentColor;
 }
 
 .maplibregl-popup-content {
@@ -357,7 +352,7 @@ body,
 /* ---- own spots ---- */
 
 .marker.marker-mine {
-  background: #b5651d;
+  color: #b5651d;
 }
 
 .popup-actions {

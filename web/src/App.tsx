@@ -48,6 +48,43 @@ type FormState = {
   danger: number;
 };
 
+// Map pin: guitar-pick body with an upward sage sprout. Static markup (no
+// user data). The body colour comes from CSS (.marker-body / .marker-mine).
+const LEAF = "M0-10C4.5-5 4.5 5 0 10-4.5 5-4.5-5 0-10Z";
+const MARKER_SVG =
+  '<svg viewBox="-2 -2 68 68" width="32" height="32" aria-hidden="true">' +
+  '<path class="marker-body" d="M26 56C16 46 4 33 4 19.5 4 8 17 2.5 32 2.5S60 8 60 19.5C60 33 48 46 38 56Q32 62 26 56Z" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/>' +
+  '<path d="M32 48V21" stroke="#e8f3e8" stroke-width="3.5" stroke-linecap="round"/>' +
+  `<path d="${LEAF}" fill="#cfe3c8" transform="translate(32.0 15.5) rotate(0) scale(0.65)"/>` +
+  `<path d="${LEAF}" fill="#cfe3c8" transform="translate(38.4 23.6) rotate(45) scale(0.9)"/>` +
+  `<path d="${LEAF}" fill="#cfe3c8" transform="translate(25.6 23.6) rotate(-45) scale(0.9)"/>` +
+  `<path d="${LEAF}" fill="#a8c69f" transform="translate(39.0 37.1) rotate(55) scale(0.85)"/>` +
+  `<path d="${LEAF}" fill="#a8c69f" transform="translate(25.0 37.1) rotate(-55) scale(0.85)"/>` +
+  "</svg>";
+
+// The 32px SVG maps 68 viewBox units, and the pick's tip (y≈59) sits ~7 units
+// (~3px) above the box bottom, so shift the marker down to put the tip on the
+// spot. The pick's top is ~28px above the spot; popups open just above it.
+const MARKER_OFFSET: [number, number] = [0, 3];
+const POPUP_OFFSET: maplibregl.Offset = {
+  center: [0, -14],
+  top: [0, 2],
+  "top-left": [0, 2],
+  "top-right": [0, 2],
+  bottom: [0, -30],
+  "bottom-left": [0, -30],
+  "bottom-right": [0, -30],
+  left: [16, -14],
+  right: [-16, -14],
+};
+
+function markerElement(mine: boolean): HTMLElement {
+  const el = document.createElement("div");
+  el.className = mine ? "marker marker-mine" : "marker";
+  el.innerHTML = MARKER_SVG;
+  return el;
+}
+
 type PopupActions = {
   onEdit: (spot: Spot) => void;
   onDelete: (spot: Spot) => void;
@@ -245,17 +282,16 @@ export default function App() {
       onDelete: (s) => popupActionsRef.current.onDelete(s),
     };
     markersRef.current = spots.map((spot) => {
-      const el = document.createElement("div");
-      el.className = spot.is_mine ? "marker marker-mine" : "marker";
+      const el = markerElement(spot.is_mine);
       el.title = spot.name;
-      const popup = new maplibregl.Popup({ offset: 24, closeButton: false }).setDOMContent(
+      const popup = new maplibregl.Popup({ offset: POPUP_OFFSET, closeButton: false }).setDOMContent(
         popupDom(spot, actions)
       );
       // Don't stop propagation on marker/popup clicks here: MapLibre toggles
       // the popup from its own map-level click handler, so the click must
       // reach the map. The map click handler ignores clicks that landed on a
       // marker or popup, which is what keeps the add-form from opening.
-      return new maplibregl.Marker({ element: el })
+      return new maplibregl.Marker({ element: el, anchor: "bottom", offset: MARKER_OFFSET })
         .setLngLat([spot.lng, spot.lat])
         .setPopup(popup)
         .addTo(map);
