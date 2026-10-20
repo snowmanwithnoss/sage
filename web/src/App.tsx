@@ -116,13 +116,23 @@ export default function App() {
       const el = document.createElement("div");
       el.className = "marker";
       el.title = spot.name;
+      // Markers are DOM elements layered on top of the map canvas, inside the
+      // canvas container that MapLibre listens on. Without this, a marker
+      // click bubbles up and is re-emitted as a map "click", which would also
+      // open the add-spot form under the popup. Stopping the DOM propagation
+      // here still lets the marker's own click handler toggle its popup.
+      el.addEventListener("click", (e) => e.stopPropagation());
+      const popup = new maplibregl.Popup({ offset: 24, closeButton: false }).setDOMContent(
+        popupDom(spot)
+      );
+      // Same story for the open popup itself: clicks inside it (e.g. selecting
+      // text) must not reach the map and open the form.
+      popup.on("open", () => {
+        popup.getElement()?.addEventListener("click", (e) => e.stopPropagation());
+      });
       return new maplibregl.Marker({ element: el })
         .setLngLat([spot.lng, spot.lat])
-        .setPopup(
-          new maplibregl.Popup({ offset: 24, closeButton: false }).setDOMContent(
-            popupDom(spot)
-          )
-        )
+        .setPopup(popup)
         .addTo(map);
     });
   }, [spots]);
@@ -184,6 +194,10 @@ export default function App() {
               autoFocus
               required
               maxLength={100}
+              id="spot-name"
+              name="spot-name"
+              autoComplete="off"
+              data-1p-ignore
               placeholder="e.g. Rosemary by the gate"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}

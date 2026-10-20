@@ -168,21 +168,31 @@ body,
 }
 
 .danger-options {
-  display: flex;
-  gap: 6px;
+  /* 5 equal columns sharing the row so all buttons fit inside the panel */
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
 }
 
 .danger-btn {
-  flex: 1;
+  min-width: 0;
   font: inherit;
-  font-size: 0.95rem;
-  letter-spacing: 2px;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
   padding: 6px 0;
   background: transparent;
   border: 1px solid #ccc;
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
+}
+
+/* Narrow panels: shrink the pepper text further so 5 still fit */
+@media (max-width: 420px) {
+  .danger-btn {
+    font-size: 0.62rem;
+    letter-spacing: 0;
+  }
 }
 
 .danger-btn.selected {
