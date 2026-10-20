@@ -1,151 +1,52 @@
-import { useEffect, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
-import {
-  ApiError,
-  createSpot,
-  deleteSpot,
-  fetchSpots,
-  updateSpot,
-  DANGER_DEFAULT,
-  DANGER_MAX,
-  DESCRIPTION_MAX,
-  NAME_MAX,
-  type Spot,
-} from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type maplibregl from "maplibre-gl";
+import { ApiError, createSpot, deleteSpot, fetchSpots, updateSpot, DANGER_DEFAULT, type Spot } from "./api";
 import { authClient } from "./auth";
-import AuthDialog from "./AuthDialog";
+import AuthDialog from "./components/AuthDialog";
+import AccountButton from "./components/AccountButton";
+import BottomSheet from "./components/BottomSheet";
+import { AddFab, CompassButton, LocateButton } from "./components/MapControls";
+import PlacementOverlay from "./components/PlacementOverlay";
+import SearchBar from "./components/SearchBar";
+import Snackbar, { type SnackbarMessage } from "./components/Snackbar";
+import { SpotBody, SpotHeader } from "./components/SpotDetails";
+import { SpotFormFields, SpotFormFooter, SpotFormHeader, type FormState } from "./components/SpotForm";
+import { spotUrl } from "./lib/format";
+import { prefersReducedMotion, useColorScheme, useIsDesktop } from "./lib/hooks";
+import { useMap } from "./map/useMap";
+import { useMapGestures, useMapOrientation } from "./map/useMapGestures";
+import { useDraftMarker, useSpotMarkers } from "./map/useSpotMarkers";
+import { useUserLocation } from "./map/useUserLocation";
 
-// Free OSM raster tiles (no token needed). Attribution is required by OSM.
-const OSM_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    },
-  },
-  layers: [
-    {
-      id: "osm",
-      type: "raster",
-      source: "osm",
-    },
-  ],
-};
-
-/** `id` set means editing that spot; otherwise adding a new one. */
-type FormState = {
-  id?: string;
-  lat: number;
-  lng: number;
-  name: string;
-  description: string;
-  danger: number;
-};
-
-// Map pin: guitar-pick body with an upward sage sprout. Static markup (no
-// user data). The body colour comes from CSS (.marker-body / .marker-mine).
-const LEAF = "M0-10C4.5-5 4.5 5 0 10-4.5 5-4.5-5 0-10Z";
-const MARKER_SVG =
-  '<svg viewBox="-2 -2 68 68" width="32" height="32" aria-hidden="true">' +
-  '<path class="marker-body" d="M26 56C16 46 4 33 4 19.5 4 8 17 2.5 32 2.5S60 8 60 19.5C60 33 48 46 38 56Q32 62 26 56Z" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/>' +
-  '<path d="M32 48V21" stroke="#e8f3e8" stroke-width="3.5" stroke-linecap="round"/>' +
-  `<path d="${LEAF}" fill="#cfe3c8" transform="translate(32.0 15.5) rotate(0) scale(0.65)"/>` +
-  `<path d="${LEAF}" fill="#cfe3c8" transform="translate(38.4 23.6) rotate(45) scale(0.9)"/>` +
-  `<path d="${LEAF}" fill="#cfe3c8" transform="translate(25.6 23.6) rotate(-45) scale(0.9)"/>` +
-  `<path d="${LEAF}" fill="#a8c69f" transform="translate(39.0 37.1) rotate(55) scale(0.85)"/>` +
-  `<path d="${LEAF}" fill="#a8c69f" transform="translate(25.0 37.1) rotate(-55) scale(0.85)"/>` +
-  "</svg>";
-
-// The 32px SVG maps 68 viewBox units, and the pick's tip (y≈59) sits ~7 units
-// (~3px) above the box bottom, so shift the marker down to put the tip on the
-// spot. The pick's top is ~28px above the spot; popups open just above it.
-const MARKER_OFFSET: [number, number] = [0, 3];
-const POPUP_OFFSET: maplibregl.Offset = {
-  center: [0, -14],
-  top: [0, 2],
-  "top-left": [0, 2],
-  "top-right": [0, 2],
-  bottom: [0, -30],
-  "bottom-left": [0, -30],
-  "bottom-right": [0, -30],
-  left: [16, -14],
-  right: [-16, -14],
-};
-
-function markerElement(mine: boolean): HTMLElement {
-  const el = document.createElement("div");
-  el.className = mine ? "marker marker-mine" : "marker";
-  el.innerHTML = MARKER_SVG;
-  return el;
-}
-
-type PopupActions = {
-  onEdit: (spot: Spot) => void;
-  onDelete: (spot: Spot) => void;
-};
-
-function dangerPeppers(rating: number): string {
-  return "🌶️".repeat(rating) + "·".repeat(DANGER_MAX - rating);
-}
-
-function popupDom(spot: Spot, actions: PopupActions): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "popup";
-  const h = document.createElement("h3");
-  h.textContent = spot.name;
-  wrap.appendChild(h);
-  if (spot.description) {
-    const p = document.createElement("p");
-    p.textContent = spot.description;
-    wrap.appendChild(p);
-  }
-  const danger = document.createElement("p");
-  danger.className = "popup-danger";
-  danger.textContent = `Danger: ${dangerPeppers(spot.danger)}`;
-  wrap.appendChild(danger);
-
-  if (spot.is_mine) {
-    const row = document.createElement("div");
-    row.className = "popup-actions";
-    const edit = document.createElement("button");
-    edit.type = "button";
-    edit.textContent = "Edit";
-    edit.addEventListener("click", () => actions.onEdit(spot));
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "danger-action";
-    del.textContent = "Delete";
-    del.addEventListener("click", () => actions.onDelete(spot));
-    row.append(edit, del);
-    wrap.appendChild(row);
-  }
-  return wrap;
-}
+const round6 = (n: number) => Number(n.toFixed(6));
 
 export default function App() {
+  const theme = useColorScheme();
+  const isDesktop = useIsDesktop();
+  const appRef = useRef<HTMLDivElement>(null);
   const mapContainer = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
-  const [mapReady, setMapReady] = useState(false);
+  const map = useMap(mapContainer, theme);
+
   const [spots, setSpots] = useState<Spot[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
+  const [placing, setPlacing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [snack, setSnack] = useState<SnackbarMessage | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [authReason, setAuthReason] = useState<string | undefined>(undefined);
 
   const { data: session, isPending: sessionPending } = authClient.useSession();
   const userId = session?.user.id ?? null;
+  const sessionState = sessionPending ? "pending" : userId !== null ? "signed-in" : "signed-out";
 
-  // The map click handler is registered once; read the latest session via a ref.
-  const sessionRef = useRef<"pending" | "signed-in" | "signed-out">("pending");
-  sessionRef.current = sessionPending ? "pending" : userId !== null ? "signed-in" : "signed-out";
+  const selected = spots.find((s) => s.id === selectedId) ?? null;
+
+  const notify = useCallback((text: string, kind: SnackbarMessage["kind"] = "info") => {
+    setSnack({ id: Date.now(), text, kind });
+  }, []);
+  const dismissSnack = useCallback(() => setSnack(null), []);
 
   const openSignIn = (reason?: string) => {
     setAuthReason(reason);
@@ -155,96 +56,179 @@ export default function App() {
   /** Shows an API error; a 401 means the session expired, so prompt sign-in instead. */
   const reportError = (e: unknown, fallback: string) => {
     if (e instanceof ApiError && e.status === 401) {
-      setError(null);
+      setSnack(null);
       openSignIn("Your session has expired. Please sign in again.");
       return;
     }
-    setError(e instanceof Error ? e.message : fallback);
+    notify(e instanceof Error ? e.message : fallback, "error");
   };
 
-  // Init map, handle click-to-add
-  useEffect(() => {
-    if (!mapContainer.current || mapRef.current) return;
+  /** Signed-in check for adding; prompts sign-in when signed out. */
+  const canAdd = () => {
+    if (sessionState === "pending") return false;
+    if (sessionState === "signed-out") {
+      openSignIn("Sign in to add a herb spot.");
+      return false;
+    }
+    return true;
+  };
 
-    const map = new maplibregl.Map({
-      container: mapContainer.current,
-      style: OSM_STYLE,
-      center: [0, 20],
-      zoom: 2,
-      attributionControl: { compact: true },
-    });
-    map.addControl(new maplibregl.NavigationControl(), "bottom-right");
-    mapRef.current = map;
-
-    map.on("load", () => setMapReady(true));
-
-    map.on("click", (e) => {
-      // MapLibre opens marker popups from its own map-level click handler
-      // (checking e.originalEvent.target), so clicks on markers and popups
-      // reach this handler too. Ignore them so the add-spot form only opens
-      // for clicks on the map itself.
-      const target = e.originalEvent.target;
-      if (target instanceof Element && (target.closest(".marker") || target.closest(".maplibregl-popup"))) return;
-      // Session still loading: we don't know yet, so do nothing.
-      if (sessionRef.current === "pending") return;
-      if (sessionRef.current === "signed-out") {
-        openSignIn("Sign in to add a herb spot.");
-        return;
-      }
-      setForm({
-        lat: Number(e.lngLat.lat.toFixed(6)),
-        lng: Number(e.lngLat.lng.toFixed(6)),
-        name: "",
-        description: "",
-        danger: DANGER_DEFAULT,
-      });
-    });
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-      markersRef.current = [];
-      setMapReady(false);
-    };
-  }, []);
+  // ---- data ----
 
   // Load spots once the session is known, and again whenever the user
   // changes, so `is_mine` reflects who is signed in.
-  const fittedRef = useRef(false);
   useEffect(() => {
     if (sessionPending) return;
     let cancelled = false;
     fetchSpots()
-      .then((loaded) => {
+      .then((loadedSpots) => {
         if (cancelled) return;
-        setSpots(loaded);
-        setError(null);
+        setSpots(loadedSpots);
+        setLoaded(true);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load spots");
+        if (!cancelled) notify(e instanceof Error ? e.message : "Failed to load spots", "error");
       });
     return () => {
       cancelled = true;
     };
-  }, [userId, sessionPending]);
+  }, [userId, sessionPending, notify]);
 
-  // Signing out closes any open add/edit form.
+  // Signing out closes any open add/edit form or placement.
   useEffect(() => {
-    if (!userId) setForm(null);
+    if (!userId) {
+      setForm(null);
+      setPlacing(false);
+    }
   }, [userId]);
 
-  // Fit the map to the spots the first time both are available.
+  // ---- map focus (keep the target visible beside/above the sheet) ----
+
+  const sheetHeightRef = useRef(0);
+  const onSheetHeight = useCallback((px: number, dragging: boolean) => {
+    sheetHeightRef.current = px;
+    const app = appRef.current;
+    if (!app) return;
+    app.classList.toggle("sheet-dragging", dragging);
+    app.style.setProperty("--sheet-h", `${Math.round(px)}px`);
+    app.classList.toggle("sheet-tall", px > window.innerHeight * 0.5);
+  }, []);
+
+  const focusOn = useCallback(
+    (lng: number, lat: number, opts: { zoom?: number; fly?: boolean } = {}) => {
+      if (!map) return;
+      // Wait two frames so a newly opened sheet has measured itself.
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          let offset: [number, number] = [0, 0];
+          const sheet = document.querySelector<HTMLElement>(".sheet:not(.sheet-closing)");
+          if (isDesktop) {
+            const right = sheet?.getBoundingClientRect().right ?? 0;
+            offset = [right / 2, 0];
+          } else {
+            const top = document.querySelector(".search-pill")?.getBoundingClientRect().bottom ?? 0;
+            offset = [0, (top - sheetHeightRef.current) / 2];
+          }
+          const animate = !prefersReducedMotion();
+          const target = { center: [lng, lat] as [number, number], offset, zoom: opts.zoom ?? map.getZoom() };
+          if (opts.fly && animate) map.flyTo({ ...target, duration: 1400 });
+          else map.easeTo({ ...target, duration: animate ? 450 : 0 });
+        })
+      );
+    },
+    [map, isDesktop]
+  );
+
+  // ---- selection ----
+
+  const selectSpot = useCallback(
+    (spot: Spot, opts: { fly?: boolean } = {}) => {
+      setPlacing(false);
+      setForm(null);
+      setSelectedId(spot.id);
+      const zoom = map ? (opts.fly ? Math.max(map.getZoom(), 16) : Math.max(map.getZoom(), 14)) : undefined;
+      focusOn(spot.lng, spot.lat, { zoom, fly: opts.fly });
+    },
+    [map, focusOn]
+  );
+
+  // A `?spot=<id>` deep link, read once before the URL sync below can clear it.
+  const deepLinkId = useRef(new URL(window.location.href).searchParams.get("spot"));
+  const deepLinkDone = useRef(false);
+
+  // Keep `?spot=<id>` in the URL so the current spot can be shared/bookmarked.
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || fittedRef.current || spots.length === 0) return;
-    fittedRef.current = true;
-    const bounds = new maplibregl.LngLatBounds();
-    for (const s of spots) bounds.extend([s.lng, s.lat]);
-    map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
-  }, [spots, mapReady]);
+    if (!deepLinkDone.current) return;
+    const url = new URL(window.location.href);
+    if (selectedId) url.searchParams.set("spot", selectedId);
+    else url.searchParams.delete("spot");
+    if (url.toString() !== window.location.href) window.history.replaceState(null, "", url);
+  }, [selectedId]);
+
+  // Open a deep-linked spot once both the map and spots are ready.
+  useEffect(() => {
+    if (!map || !loaded || deepLinkDone.current) return;
+    deepLinkDone.current = true;
+    const id = deepLinkId.current;
+    const spot = id ? spots.find((s) => s.id === id) : undefined;
+    if (spot) {
+      map.jumpTo({ center: [spot.lng, spot.lat], zoom: 16 });
+      selectSpot(spot);
+    } else if (id) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("spot");
+      window.history.replaceState(null, "", url);
+      notify("That herb spot is no longer here.", "error");
+    }
+  }, [map, loaded, spots, selectSpot, notify]);
+
+  // ---- adding ----
+
+  const openAddForm = (lngLat: { lng: number; lat: number }) => {
+    setPlacing(false);
+    setSelectedId(null);
+    setForm({ lat: round6(lngLat.lat), lng: round6(lngLat.lng), name: "", description: "", danger: DANGER_DEFAULT });
+    focusOn(lngLat.lng, lngLat.lat);
+  };
+
+  const startPlacement = () => {
+    if (!map || !canAdd()) return;
+    setSelectedId(null);
+    setForm(null);
+    setPlacing(true);
+    // A leftover info toast ("Link copied") would sit over the placement bar.
+    setSnack((s) => (s?.kind === "info" ? null : s));
+    if (map.getZoom() < 15) map.easeTo({ zoom: 16, duration: prefersReducedMotion() ? 0 : 500 });
+  };
+
+  const confirmPlacement = (lngLat: maplibregl.LngLat) => openAddForm(lngLat);
+
+  // ---- map gestures & markers ----
+
+  useSpotMarkers(map, spots, selectedId, (spot) => {
+    if (form || placing) return; // don't lose an unsaved form
+    selectSpot(spot);
+  });
+  useDraftMarker(map, form && form.id === undefined ? form : null);
+
+  useMapGestures(map, {
+    onTap: () => {
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      if (!form && !placing) setSelectedId(null);
+    },
+    onLongPress: (lngLat) => {
+      if (form || placing) return;
+      if (!canAdd()) return;
+      openAddForm(lngLat);
+    },
+  });
+
+  const orientation = useMapOrientation(map);
+  const location = useUserLocation(map, (msg) => notify(msg, "error"));
+
+  // ---- spot actions ----
 
   const handleEdit = (spot: Spot) => {
-    for (const m of markersRef.current) m.getPopup()?.remove();
     setForm({
       id: spot.id,
       lat: spot.lat,
@@ -257,52 +241,42 @@ export default function App() {
 
   const handleDelete = async (spot: Spot) => {
     if (!window.confirm(`Delete “${spot.name}”? This can't be undone.`)) return;
-    setError(null);
+    setSnack(null);
     try {
       await deleteSpot(spot.id);
       setSpots((prev) => prev.filter((s) => s.id !== spot.id));
+      setSelectedId((id) => (id === spot.id ? null : id));
       setForm((f) => (f?.id === spot.id ? null : f));
+      notify("Herb spot deleted");
     } catch (e) {
       reportError(e, "Failed to delete spot");
     }
   };
 
-  // Marker popups are plain DOM built once per spots change; route their
-  // button clicks through a ref so they always call the latest handlers.
-  const popupActionsRef = useRef<PopupActions>({ onEdit: handleEdit, onDelete: handleDelete });
-  popupActionsRef.current = { onEdit: handleEdit, onDelete: handleDelete };
-
-  // Sync markers with spots
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    for (const m of markersRef.current) m.remove();
-    const actions: PopupActions = {
-      onEdit: (s) => popupActionsRef.current.onEdit(s),
-      onDelete: (s) => popupActionsRef.current.onDelete(s),
-    };
-    markersRef.current = spots.map((spot) => {
-      const el = markerElement(spot.is_mine);
-      el.title = spot.name;
-      const popup = new maplibregl.Popup({ offset: POPUP_OFFSET, closeButton: false }).setDOMContent(
-        popupDom(spot, actions)
-      );
-      // Don't stop propagation on marker/popup clicks here: MapLibre toggles
-      // the popup from its own map-level click handler, so the click must
-      // reach the map. The map click handler ignores clicks that landed on a
-      // marker or popup, which is what keeps the add-form from opening.
-      return new maplibregl.Marker({ element: el, anchor: "bottom", offset: MARKER_OFFSET })
-        .setLngLat([spot.lng, spot.lat])
-        .setPopup(popup)
-        .addTo(map);
-    });
-  }, [spots, mapReady]);
+  const handleShare = async (spot: Spot) => {
+    const url = spotUrl(spot.id);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: spot.name, text: `${spot.name} — a herb spot on Sage`, url });
+        return;
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        // Otherwise fall back to copying.
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      notify("Link copied");
+    } catch {
+      notify(`Couldn't copy the link: ${url}`, "error");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form) return;
+    if (!form || submitting) return;
     setSubmitting(true);
-    setError(null);
+    setSnack(null);
     const input = {
       name: form.name,
       description: form.description,
@@ -314,9 +288,12 @@ export default function App() {
       if (form.id) {
         const updated = await updateSpot(form.id, input);
         setSpots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+        notify("Changes saved");
       } else {
         const spot = await createSpot(input);
         setSpots((prev) => [spot, ...prev]);
+        setSelectedId(spot.id);
+        notify("Herb spot added");
       }
       setForm(null);
     } catch (e) {
@@ -326,129 +303,136 @@ export default function App() {
     }
   };
 
-  const handleSignOut = async () => {
-    await authClient.signOut();
+  const cancelForm = () => {
+    if (!submitting) setForm(null);
   };
 
-  const editing = form?.id !== undefined;
+  // Escape: leave placement, cancel the form, or close the sheet.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      if (placing) setPlacing(false);
+      else if (form) cancelForm();
+      else if (selectedId) setSelectedId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  // ---- render ----
+
+  const sheetOpen = form !== null || selected !== null;
+  const user = session ? { name: session.user.name, email: session.user.email } : null;
+  const showHint = loaded && spots.length === 0 && !sheetOpen && !placing;
+
+  let sheet: React.ComponentProps<typeof BottomSheet> | null = null;
+  if (form) {
+    sheet = {
+      open: true,
+      contentKey: `form-${form.id ?? "new"}`,
+      initialSnap: "expanded",
+      label: form.id ? "Edit herb spot" : "Add a herb spot",
+      header: <SpotFormHeader form={form} />,
+      children: (
+        <SpotFormFields form={form} onChange={setForm} onSubmit={handleSubmit} autoFocus={isDesktop} />
+      ),
+      footer: <SpotFormFooter form={form} submitting={submitting} onCancel={cancelForm} />,
+      onDismiss: cancelForm,
+      dismissible: !submitting,
+    };
+  } else if (selected) {
+    sheet = {
+      open: true,
+      contentKey: `spot-${selected.id}`,
+      initialSnap: "peek",
+      label: selected.name,
+      header: (
+        <SpotHeader
+          spot={selected}
+          userPosition={location.position}
+          onShare={handleShare}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      ),
+      children: <SpotBody spot={selected} />,
+      onDismiss: () => setSelectedId(null),
+    };
+  }
+
+  const appClass = ["app", placing && "placing", sheetOpen && "has-sheet", snack && "has-snack"]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div className="app">
+    <div ref={appRef} className={appClass}>
       <div ref={mapContainer} className="map" />
-      <header className="topbar">
-        <span className="logo" aria-hidden>
-          🌿
-        </span>
-        <h1>Sage</h1>
-        <span className="tagline">neighbourhood herbs</span>
-        <span className="count">
-          {spots.length} spot{spots.length === 1 ? "" : "s"}
-        </span>
-      </header>
 
-      <div className="account">
-        {sessionPending ? null : session ? (
-          <>
-            <span className="account-email" title={session.user.email}>
-              {session.user.email}
-            </span>
-            <button type="button" onClick={handleSignOut}>
-              Sign out
-            </button>
-          </>
-        ) : (
-          <button type="button" onClick={() => openSignIn()}>
-            Sign in
-          </button>
-        )}
+      {!placing && (
+        <SearchBar
+          spots={spots}
+          onPick={(spot) => selectSpot(spot, { fly: true })}
+          getOrigin={() => {
+            if (location.position) return location.position;
+            const c = map?.getCenter();
+            return c ? { lat: c.lat, lng: c.lng } : { lat: -37.81, lng: 144.97 };
+          }}
+          originIsUser={location.position !== null}
+          account={
+            <AccountButton
+              pending={sessionPending}
+              user={user}
+              onSignIn={() => openSignIn()}
+              onSignOut={() => void authClient.signOut()}
+            />
+          }
+        />
+      )}
+
+      {showHint && (
+        <div className="hint" role="note">
+          {session ? (
+            <>
+              No herbs here yet. Tap <strong>Add herb</strong> or long-press the map to drop the first one.
+            </>
+          ) : (
+            <>No herbs here yet. Sign in to drop the first one.</>
+          )}
+        </div>
+      )}
+
+      {map && (
+        <CompassButton
+          bearing={orientation.bearing}
+          pitch={orientation.pitch}
+          onReset={() => map.resetNorthPitch({ duration: prefersReducedMotion() ? 0 : 400 })}
+        />
+      )}
+
+      <div className="map-buttons">
+        <LocateButton status={location.status} onClick={location.locate} />
+        {!placing && <AddFab onClick={startPlacement} />}
       </div>
 
+      {placing && map && (
+        <PlacementOverlay map={map} onCancel={() => setPlacing(false)} onConfirm={confirmPlacement} />
+      )}
+
+      <BottomSheet
+        {...(sheet ?? {
+          open: false,
+          contentKey: "none",
+          initialSnap: "peek",
+          label: "",
+          header: null,
+          onDismiss: () => {},
+        })}
+        onVisibleHeightChange={onSheetHeight}
+      />
+
+      <Snackbar message={snack} onDismiss={dismissSnack} />
+
       <AuthDialog open={authOpen} reason={authReason} onClose={() => setAuthOpen(false)} />
-
-      {error && (
-        <div className="toast toast-error" role="alert">
-          {error}
-        </div>
-      )}
-
-      {!form && !error && spots.length === 0 && (
-        <div className="hint">
-          {session ? "Click anywhere on the map to add the first herb spot" : "Sign in to add the first herb spot"}
-        </div>
-      )}
-
-      {form && (
-        <form
-          className="panel"
-          onSubmit={handleSubmit}
-          onKeyDown={(e) => {
-            if (e.key === "Escape" && !submitting) setForm(null);
-          }}
-        >
-          <h2>
-            {editing ? "Edit herb spot" : "Add herb spot"}{" "}
-            <span className="coords">
-              ({form.lat}, {form.lng})
-            </span>
-          </h2>
-          <label>
-            Name
-            <input
-              autoFocus
-              required
-              maxLength={NAME_MAX}
-              id="spot-name"
-              name="spot-name"
-              autoComplete="off"
-              data-1p-ignore
-              placeholder="e.g. Rosemary by the gate"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-          </label>
-          <label>
-            Description <span className="optional">(optional)</span>
-            <textarea
-              maxLength={DESCRIPTION_MAX}
-              rows={3}
-              placeholder="Which herb? Public or ask first? Best time to visit…"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-          </label>
-          <fieldset className="danger-picker">
-            <legend>
-              Danger <span className="optional">(how likely you get chased)</span>
-            </legend>
-            <div className="danger-options" role="radiogroup" aria-label="Danger rating">
-              {Array.from({ length: DANGER_MAX }, (_, i) => i + 1).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={form.danger === value}
-                  className={form.danger === value ? "danger-btn selected" : "danger-btn"}
-                  title={`Danger rating ${value} of ${DANGER_MAX}`}
-                  onClick={() => setForm({ ...form, danger: value })}
-                >
-                  {value}
-                </button>
-              ))}
-            </div>
-            <p className="danger-preview" aria-live="polite">
-              {dangerPeppers(form.danger).replace(/·/g, "○")} {form.danger}/{DANGER_MAX}
-            </p>
-          </fieldset>
-          <div className="actions">
-            <button type="button" onClick={() => setForm(null)} disabled={submitting}>
-              Cancel
-            </button>
-            <button type="submit" disabled={submitting}>
-              {submitting ? (editing ? "Saving…" : "Adding…") : editing ? "Save changes" : "Add spot"}
-            </button>
-          </div>
-        </form>
-      )}
     </div>
   );
 }

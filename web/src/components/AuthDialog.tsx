@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { authClient } from "./auth";
+import { authClient } from "../auth";
+import { SageLogo } from "./icons";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -71,12 +72,15 @@ export default function AuthDialog({ open, reason, onClose }: Props) {
         onClose();
       }}
     >
-      <form className="panel panel-dialog" onSubmit={handleSubmit}>
+      <form className="auth-card" onSubmit={handleSubmit}>
+        <div className="auth-brand">
+          <SageLogo size={48} />
+        </div>
         <h2 id="auth-title">{title}</h2>
         {reason && <p className="dialog-reason">{reason}</p>}
         {mode === "sign-up" && (
-          <label>
-            Name
+          <label className="field">
+            <span className="field-label">Name</span>
             <input
               required
               maxLength={100}
@@ -86,8 +90,8 @@ export default function AuthDialog({ open, reason, onClose }: Props) {
             />
           </label>
         )}
-        <label>
-          Email
+        <label className="field">
+          <span className="field-label">Email</span>
           <input
             type="email"
             required
@@ -96,8 +100,8 @@ export default function AuthDialog({ open, reason, onClose }: Props) {
             onChange={(e) => setEmail(e.target.value)}
           />
         </label>
-        <label>
-          Password
+        <label className="field">
+          <span className="field-label">Password</span>
           <input
             type="password"
             required
@@ -113,15 +117,15 @@ export default function AuthDialog({ open, reason, onClose }: Props) {
             {error}
           </p>
         )}
-        <div className="actions">
-          <button type="button" className="link-btn" onClick={switchMode} disabled={submitting}>
+        <div className="auth-actions">
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? "Please wait…" : title}
+          </button>
+          <button type="button" className="btn btn-text" onClick={switchMode} disabled={submitting}>
             {mode === "sign-in" ? "New here? Create an account" : "Have an account? Sign in"}
           </button>
-          <button type="button" onClick={onClose} disabled={submitting}>
-            Cancel
-          </button>
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Please wait…" : title}
+          <button type="button" className="btn btn-text btn-muted" onClick={onClose} disabled={submitting}>
+            Not now
           </button>
         </div>
       </form>

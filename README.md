@@ -9,7 +9,8 @@ communal mint patch? Drop a pin so neighbours can visit.
 - **Cloudflare D1** — SQLite storage
 - **Vite + React** — single-page app
 - **Better Auth** — email + password accounts, sessions in D1
-- **MapLibre GL JS** — map with free OpenStreetMap raster tiles (no API keys)
+- **MapLibre GL JS** — custom "Sage" vector map style (light + dark) on free
+  [OpenFreeMap](https://openfreemap.org) tiles (no API keys)
 
 ## Prerequisites
 
@@ -43,7 +44,8 @@ npm run dev:web
 ```
 
 Open http://localhost:5173. Anyone can browse; sign in (or create an account)
-to add spots, and edit/delete your own from their popups.
+to add spots ("+ Add herb", or long-press the map), and tap a spot to open
+its sheet — edit/delete your own from there. Best viewed at phone size.
 
 Schema changes go in a new numbered file in `migrations/`
 (`npx wrangler d1 migrations create sage <name>`), then
@@ -82,7 +84,7 @@ npx wrangler deploy
 
 ```
 src/          Worker: Hono app (/api/*), Better Auth setup, entry
-web/          Vite + React SPA (MapLibre map, sign-in dialog)
+web/          Vite + React SPA (map/, components/, lib/; manifest for home-screen install)
 shared/       Types/constants used by both src/ and web/
 migrations/   D1 migrations (spots + Better Auth tables)
 wrangler.jsonc  Worker config: assets, /api/* routing, D1 binding DB, vars

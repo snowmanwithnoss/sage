@@ -1,0 +1,16 @@
+{
+  "name": "Sage — neighbourhood herbs",
+  "short_name": "Sage",
+  "description": "Find and share herb spots in your neighbourhood.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f5f0",
+  "theme_color": "#2f5d34",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}
