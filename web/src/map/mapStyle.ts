@@ -16,6 +16,7 @@
 //      draw order (and later symbol layers win label collisions).
 
 import type maplibregl from "maplibre-gl";
+import { RESERVOIR_OUTLINE } from "./reservoirArea";
 
 export type MapTheme = "light" | "dark";
 
@@ -61,6 +62,7 @@ type Palette = {
   building: string;
   buildingOutline: string;
   housenumber: string;
+  lotLine: string; // Vicmap property boundaries
 
   roadMinor: string;
   roadMinorCasing: string;
@@ -125,6 +127,7 @@ const LIGHT: Palette = {
   building: "#ebe8e1",
   buildingOutline: "#cfc9bd",
   housenumber: "#8a8379",
+  lotLine: "#c9bda8",
 
   roadMinor: "#ffffff",
   roadMinorCasing: "#e4e1da",
@@ -188,6 +191,7 @@ const DARK: Palette = {
   building: "#252d3a",
   buildingOutline: "#3d4758",
   housenumber: "#8792a3",
+  lotLine: "#4a5770",
 
   roadMinor: "#2a3240",
   roadMinorCasing: "#1c2330",
@@ -545,26 +549,85 @@ function buildingLayers(p: Palette): Layer[] {
   ];
 }
 
-function housenumberLayers(p: Palette): Layer[] {
+function housenumberLayers(p: Palette, vicmap: boolean): Layer[] {
+  const layout: maplibregl.SymbolLayerSpecification["layout"] = {
+    "text-font": FONT_REGULAR,
+    "text-size": linear([[16.5, 9.5], [18, 11], [20, 13]]),
+    "text-padding": 1,
+    "text-max-width": 6,
+  };
+  const paint: maplibregl.SymbolLayerSpecification["paint"] = {
+    "text-color": p.housenumber,
+    "text-halo-color": p.building,
+    "text-halo-width": 1.2,
+    "text-opacity": linear([[16.5, 0], [17, 1]]),
+  };
+  const osm: Layer = {
+    id: "housenumber",
+    type: "symbol",
+    source: SOURCE,
+    "source-layer": "housenumber",
+    minzoom: 16.5,
+    layout: { ...layout, "text-field": ["get", "housenumber"] },
+    paint,
+  };
+  if (!vicmap) return [osm];
+  return [
+    // Inside Reservoir the official Vicmap numbers replace OSM's, so the two
+    // never double up. The address file only holds points inside this same
+    // outline (see scripts/vicmap/fetch-reservoir.ts).
+    { ...osm, filter: ["!", ["within", RESERVOIR_OUTLINE]] as unknown as Expr },
+    {
+      id: "vicmap-housenumber",
+      type: "symbol",
+      source: VICMAP_ADDRESSES,
+      minzoom: 16.5,
+      layout: { ...layout, "text-field": ["get", "n"] },
+      paint,
+    },
+  ];
+}
+
+// --- Vicmap (Victorian Government) property data, Reservoir only ------------
+// Static GeoJSON in web/public/data/vicmap/, built by
+// scripts/vicmap/fetch-reservoir.ts. Only added to the style once the view
+// reaches Reservoir (see `vicmapInView` in basemap.ts), so other areas never
+// download it.
+
+const VICMAP_PARCELS = "vicmap-parcels";
+const VICMAP_ADDRESSES = "vicmap-addresses";
+const VICMAP_ATTRIBUTION =
+  'Contains Vicmap Property and Vicmap Address data &copy; State of Victoria (Department of Transport and Planning), ' +
+  '<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>';
+
+function vicmapSources(): Spec["sources"] {
+  return {
+    [VICMAP_PARCELS]: {
+      type: "geojson",
+      data: "/data/vicmap/reservoir-parcels.json",
+      attribution: VICMAP_ATTRIBUTION,
+    },
+    [VICMAP_ADDRESSES]: {
+      type: "geojson",
+      data: "/data/vicmap/reservoir-addresses.json",
+      attribution: VICMAP_ATTRIBUTION,
+    },
+  };
+}
+
+/** Property boundaries: hairlines that firm up as you zoom in to pick a house. */
+function lotLayers(p: Palette): Layer[] {
   return [
     {
-      id: "housenumber",
-      type: "symbol",
-      source: SOURCE,
-      "source-layer": "housenumber",
-      minzoom: 16.5,
-      layout: {
-        "text-field": ["get", "housenumber"],
-        "text-font": FONT_REGULAR,
-        "text-size": linear([[16.5, 9.5], [18, 11], [20, 13]]),
-        "text-padding": 1,
-        "text-max-width": 6,
-      },
+      id: "vicmap-lot-line",
+      type: "line",
+      source: VICMAP_PARCELS,
+      minzoom: 15.5,
+      layout: { "line-join": "round" },
       paint: {
-        "text-color": p.housenumber,
-        "text-halo-color": p.building,
-        "text-halo-width": 1.2,
-        "text-opacity": linear([[16.5, 0], [17, 1]]),
+        "line-color": p.lotLine,
+        "line-width": linear([[15.5, 0.4], [17, 0.7], [19, 1.1], [20, 1.4]]),
+        "line-opacity": linear([[15.5, 0], [16.5, 0.7], [17.5, 1]]),
       },
     },
   ];
@@ -932,7 +995,12 @@ function labelLayers(p: Palette): Layer[] {
 // Assembly
 // ---------------------------------------------------------------------------
 
-export function sageMapStyle(theme: MapTheme): Spec {
+export type StyleOptions = {
+  /** Include the Vicmap lot lines + street numbers (Reservoir only). */
+  vicmap?: boolean;
+};
+
+export function sageMapStyle(theme: MapTheme, { vicmap = false }: StyleOptions = {}): Spec {
   const p = theme === "dark" ? DARK : LIGHT;
   return {
     version: 8,
@@ -948,6 +1016,7 @@ export function sageMapStyle(theme: MapTheme): Spec {
           '<a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> ' +
           '<a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
       },
+      ...(vicmap ? vicmapSources() : {}),
     },
     layers: [
       ...landLayers(p),
@@ -959,11 +1028,12 @@ export function sageMapStyle(theme: MapTheme): Spec {
       ...roadGroup(p, "road"),
       ...roadGroup(p, "bridge"),
       ...tramLayers(p),
+      ...(vicmap ? lotLayers(p) : []),
       ...buildingLayers(p),
       ...boundaryLayers(p),
       // Symbols: later layers win collisions, so house numbers give way to
       // POIs, which give way to street/place names.
-      ...housenumberLayers(p),
+      ...housenumberLayers(p, vicmap),
       ...poiLayers(p),
       ...stopLayers(p),
       ...labelLayers(p),
