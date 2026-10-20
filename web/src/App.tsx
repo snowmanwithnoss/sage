@@ -90,6 +90,12 @@ export default function App() {
     });
 
     map.on("click", (e) => {
+      // MapLibre opens marker popups from its own map-level click handler
+      // (checking e.originalEvent.target), so clicks on markers and popups
+      // reach this handler too. Ignore them so the add-spot form only opens
+      // for clicks on the map itself.
+      const target = e.originalEvent.target;
+      if (target instanceof Element && (target.closest(".marker") || target.closest(".maplibregl-popup"))) return;
       setForm({
         lat: Number(e.lngLat.lat.toFixed(6)),
         lng: Number(e.lngLat.lng.toFixed(6)),
@@ -116,20 +122,13 @@ export default function App() {
       const el = document.createElement("div");
       el.className = "marker";
       el.title = spot.name;
-      // Markers are DOM elements layered on top of the map canvas, inside the
-      // canvas container that MapLibre listens on. Without this, a marker
-      // click bubbles up and is re-emitted as a map "click", which would also
-      // open the add-spot form under the popup. Stopping the DOM propagation
-      // here still lets the marker's own click handler toggle its popup.
-      el.addEventListener("click", (e) => e.stopPropagation());
       const popup = new maplibregl.Popup({ offset: 24, closeButton: false }).setDOMContent(
         popupDom(spot)
       );
-      // Same story for the open popup itself: clicks inside it (e.g. selecting
-      // text) must not reach the map and open the form.
-      popup.on("open", () => {
-        popup.getElement()?.addEventListener("click", (e) => e.stopPropagation());
-      });
+      // Don't stop propagation on marker/popup clicks here: MapLibre toggles
+      // the popup from its own map-level click handler, so the click must
+      // reach the map. The map click handler ignores clicks that landed on a
+      // marker or popup, which is what keeps the add-form from opening.
       return new maplibregl.Marker({ element: el })
         .setLngLat([spot.lng, spot.lat])
         .setPopup(popup)
