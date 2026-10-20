@@ -22,13 +22,15 @@ export function useMap(containerRef: RefObject<HTMLDivElement>, theme: Theme): m
       style: basemapStyle(themeRef.current),
       center: INITIAL_VIEW.center,
       zoom: INITIAL_VIEW.zoom,
+      maxZoom: INITIAL_VIEW.maxZoom,
       // Pinch zoom on phones, scroll/keyboard zoom on desktop; no +/- buttons.
       attributionControl: false,
+      // Rotate yes, tilt no: the map is flat (top-down is easiest for placing
+      // a pin on the right house).
       dragRotate: true,
-      pitchWithRotate: true,
-      // Two-finger vertical drag tilts up to 60° so the 3D buildings show.
-      touchPitch: true,
-      maxPitch: 60,
+      pitchWithRotate: false,
+      touchPitch: false,
+      maxPitch: 0,
     });
     m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
     appliedThemeRef.current = themeRef.current;

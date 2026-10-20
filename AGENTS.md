@@ -9,7 +9,7 @@ See [README.md](./README.md) for setup/dev/deploy commands.
 - `src/` — Cloudflare Worker (Hono). `auth.ts`: per-request `createAuth(env)` (Better Auth, email+password, D1 via native binding, rate limit stored in D1). `api.ts`: Better Auth mounted at `/api/auth/*`; `GET /api/spots` public (adds `is_mine`, never exposes `user_id`); `POST` requires session; `PATCH`/`DELETE /api/spots/:id` scoped `WHERE id = ? AND user_id = ?` (404 if not owner). Prepared statements + explicit validation. Deployed as Worker `herbs` at https://herbs.aroundme.workers.dev (account subdomain `aroundme`; D1 db "sage")
 - `web/` — Vite + React SPA, mobile-first ("Google Maps phone app" feel, installable via `public/manifest.webmanifest`, safe-area aware, light/dark via CSS tokens + `prefers-color-scheme`)
   - `src/App.tsx` — orchestration only (state, data, wiring)
-  - `src/map/` — `mapStyle.ts`: hand-built "Sage" vector style (light + dark palettes at top; OpenFreeMap tiles, OpenMapTiles schema; green space is the hero, tram lines/most POIs hidden on purpose, 3D buildings from z15). `basemap.ts`: the single place the style + initial view (inner Melbourne) are chosen. `useMap`, `useSpotMarkers` (DOM guitar-pick markers + draft pin), `useMapGestures` (tap, long-press-to-add), `useUserLocation` (blue dot)
+  - `src/map/` — `mapStyle.ts`: hand-built "Sage" vector style (light + dark palettes at top; OpenFreeMap tiles, OpenMapTiles schema; green space is the hero; flat (no 3D/tilt), zooms to z20 for hand-placed pins; street-level detail: building outlines, house numbers (z16.5+), POIs with sprite icons tiered by tile `rank` (landmarks z15, more z16, rest z17), bus/tram stops, footpaths/cycleways, driveways, laneway names, thin tram lines). `basemap.ts`: the single place the style + initial view (Reservoir, z15) are chosen. `useMap`, `useSpotMarkers` (DOM guitar-pick markers + draft pin), `useMapGestures` (tap, long-press-to-add), `useUserLocation` (blue dot)
   - `src/components/` — `SearchBar` (client-side herb search), `AccountButton`, `BottomSheet` (pointer-event draggable sheet; left card on ≥768px), `SpotDetails`, `SpotForm`, `DangerPicker`, `MapControls` (locate, compass, "+ Add herb" FAB), `PlacementOverlay` (centre-pin placement mode), `Snackbar`, `AuthDialog`, `icons`
   - `src/lib/` — `hooks.ts` (media queries, colour scheme), `format.ts` (danger labels, distance, URLs)
   - Adding a spot: FAB → move map under centre pin → confirm, or long-press. Plain map taps never add. `?spot=<id>` deep-links select a spot
@@ -29,7 +29,10 @@ See [README.md](./README.md) for setup/dev/deploy commands.
 - Every `/api/spots` request does a D1 session lookup — enable Better Auth `session.cookieCache` if it shows up in latency
 - ~1 MB JS bundle (MapLibre) — code-split when first-load perf matters
 - Basemap depends on OpenFreeMap (free, no key, no SLA) at runtime for tiles, glyphs and sprites — if it goes down the map is blank. Fallback: self-host a Protomaps/PMTiles extract of Victoria on R2. Any future CSP must allow `tiles.openfreemap.org`. Only Noto Sans Regular/Bold/Italic exist on its glyph server
-- Sprite icons (train, garden tulip) are pre-coloured, so they don't adapt to dark mode
+- Sprite icons are pre-coloured, so they don't adapt to dark mode (white badges, read fine)
+- POI icons use the OpenFreeMap sprite's `_11` icons at 1x (a bit soft on retina). `SPRITE_ICONS` in `mapStyle.ts` must match the sprite — MapLibre v4 `coalesce` can't fall back past a missing image
+- OSM building footprints are patchy in Reservoir (many lots have house numbers but no building) — Vicmap Property parcels would fill this (planned step 3)
+- Bus-bay stop labels crowd the Reservoir station forecourt at z18 — show stop names from z19
 - iOS Safari: keyboard can cover the form sheet (needs `visualViewport` handling; Android is covered by `interactive-widget=resizes-content`)
 - Bottom sheet: when expanded with scrollable body, drag-to-dismiss only works from the handle/header (no scroll→drag hand-off)
 - Editing a spot can't move its pin

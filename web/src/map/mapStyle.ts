@@ -1,6 +1,9 @@
 // Sage basemap: a hand-built MapLibre vector style in the spirit of the modern
-// Google Maps phone app — calm, pastel, legible — tuned for a herb-spotting app,
-// so green space is the hero.
+// Google Maps phone app — pastel, legible — tuned for a herb-spotting app, so
+// green space is the hero. People drop pins by hand, so at street zoom it
+// shows everything the tiles carry that helps you recognise where you're
+// standing: building outlines, house numbers, shops/cafés/schools/stops,
+// footpaths, driveways and laneway names. Flat (no 3D); zooms to z20.
 //
 // Data: OpenFreeMap vector tiles (OpenMapTiles schema, free, no API key).
 // Schema reference: https://openmaptiles.org/schema/
@@ -9,15 +12,18 @@
 //   1. Palettes (one per theme) — every colour lives here.
 //   2. Small helpers (zoom ramps, filters, name field).
 //   3. Layer builders, grouped: land → water → green space → roads/rail →
-//      buildings → labels. Order in the final array is draw order.
+//      buildings → house numbers → POIs/labels. Order in the final array is
+//      draw order (and later symbol layers win label collisions).
 
 import type maplibregl from "maplibre-gl";
 
 export type MapTheme = "light" | "dark";
 
-/** Inner Melbourne (just north of the CBD, so Carlton/Fitzroy/Southbank are in view). */
-export const MELBOURNE_CENTER: [number, number] = [144.9671, -37.8105];
-export const MELBOURNE_ZOOM = 13;
+/** Reservoir, Melbourne VIC (around Reservoir station), at street level. */
+export const INITIAL_CENTER: [number, number] = [145.007, -37.7168];
+export const INITIAL_ZOOM = 15;
+/** Vector tiles stop at z14; MapLibre overzooms them up to here. */
+export const MAX_ZOOM = 20;
 
 type Spec = maplibregl.StyleSpecification;
 type Layer = maplibregl.LayerSpecification;
@@ -54,8 +60,7 @@ type Palette = {
 
   building: string;
   buildingOutline: string;
-  buildingTop: string; // fill-extrusion colour
-  buildingOpacity: number;
+  housenumber: string;
 
   roadMinor: string;
   roadMinorCasing: string;
@@ -66,9 +71,11 @@ type Palette = {
   motorway: string;
   motorwayCasing: string;
   path: string;
+  cycleway: string;
   pedestrian: string;
   rail: string;
   railDash: string;
+  tram: string;
   tunnelOpacity: number;
   aeroway: string;
 
@@ -80,6 +87,14 @@ type Palette = {
   labelHalo: string;
   transit: string;
   boundary: string;
+
+  // POI label colours by category (icons come pre-coloured from the sprite).
+  poiFood: string;
+  poiShop: string;
+  poiHealth: string;
+  poiCivic: string;
+  poiLeisure: string;
+  poiOther: string;
 };
 
 const LIGHT: Palette = {
@@ -107,10 +122,9 @@ const LIGHT: Palette = {
   parkLabel: "#3a7a3f",
   parkDot: "#5aa65c",
 
-  building: "#efede8",
-  buildingOutline: "#e8e5df",
-  buildingTop: "#e3dfd7",
-  buildingOpacity: 0.85,
+  building: "#ebe8e1",
+  buildingOutline: "#cfc9bd",
+  housenumber: "#8a8379",
 
   roadMinor: "#ffffff",
   roadMinorCasing: "#e4e1da",
@@ -120,10 +134,12 @@ const LIGHT: Palette = {
   trunkCasing: "#ecdcae",
   motorway: "#fddf97",
   motorwayCasing: "#e8c070",
-  path: "#dedad1",
+  path: "#b8b0a2",
+  cycleway: "#6fa89d",
   pedestrian: "#fbfaf7",
   rail: "#cfccc5",
   railDash: "#f5f3ee",
+  tram: "#c4bfb5",
   tunnelOpacity: 0.35,
   aeroway: "#e6e4df",
 
@@ -135,6 +151,13 @@ const LIGHT: Palette = {
   labelHalo: "#f8f7f3",
   transit: "#3f73c4",
   boundary: "#c9c3d6",
+
+  poiFood: "#c46a1c",
+  poiShop: "#3f6fb0",
+  poiHealth: "#c0484a",
+  poiCivic: "#7a6a58",
+  poiLeisure: "#3a7a3f",
+  poiOther: "#6f6c66",
 };
 
 const DARK: Palette = {
@@ -162,10 +185,9 @@ const DARK: Palette = {
   parkLabel: "#86c093",
   parkDot: "#5f9e6c",
 
-  building: "#232b37",
-  buildingOutline: "#29313e",
-  buildingTop: "#202733",
-  buildingOpacity: 0.9,
+  building: "#252d3a",
+  buildingOutline: "#3d4758",
+  housenumber: "#8792a3",
 
   roadMinor: "#2a3240",
   roadMinorCasing: "#1c2330",
@@ -175,10 +197,12 @@ const DARK: Palette = {
   trunkCasing: "#232832",
   motorway: "#544d40",
   motorwayCasing: "#2a2a2c",
-  path: "#2f3644",
+  path: "#4c5668",
+  cycleway: "#3f7a72",
   pedestrian: "#283040",
   rail: "#3c4554",
   railDash: "#1c2330",
+  tram: "#394252",
   tunnelOpacity: 0.3,
   aeroway: "#262d39",
 
@@ -190,6 +214,13 @@ const DARK: Palette = {
   labelHalo: "#1c2330",
   transit: "#7aa7ec",
   boundary: "#3e4658",
+
+  poiFood: "#e2a066",
+  poiShop: "#86aee6",
+  poiHealth: "#e98a8b",
+  poiCivic: "#b5a897",
+  poiLeisure: "#86c093",
+  poiOther: "#9aa3b1",
 };
 
 // ---------------------------------------------------------------------------
@@ -257,13 +288,15 @@ const COMMUNITY_GARDEN: Expr = [
 ];
 
 // Road width ramps (px). Roughly Google-like: thin threads at city zoom,
-// growing towards true-ish street widths by z18+.
+// growing towards true-ish street widths by z18–20.
 const W_MOTORWAY: Stops = [[5, 0.6], [9, 1.6], [12, 3], [14, 5.5], [16, 11], [18, 26], [20, 70]];
 const W_TRUNK: Stops = [[7, 0.5], [10, 1.4], [12, 2.6], [14, 5], [16, 10], [18, 24], [20, 64]];
 const W_PRIMARY: Stops = [[8, 0.4], [10, 1.1], [12, 2.3], [14, 5], [16, 10.5], [18, 24], [20, 60]];
 const W_SECONDARY: Stops = [[9, 0.3], [11, 0.9], [12, 1.7], [14, 4.2], [16, 9], [18, 20], [20, 52]];
-const W_MINOR: Stops = [[12, 0.4], [13, 0.9], [14, 1.9], [15, 3.1], [16, 5.2], [18, 13], [20, 36]];
-const W_SERVICE: Stops = [[14, 0.4], [15, 1], [16, 2.2], [18, 6], [20, 16]];
+// Minor/service roads keep growing to roughly true width at z19–20 so the
+// footpaths and driveways mapped beside them line up.
+const W_MINOR: Stops = [[12, 0.4], [13, 0.9], [14, 1.9], [15, 3.1], [16, 5.2], [18, 15], [20, 56]];
+const W_SERVICE: Stops = [[14, 0.4], [15, 1], [16, 2.2], [18, 6.5], [20, 24]];
 const CASING_MAJOR: Stops = [[8, 0.6], [12, 1], [16, 1.6], [20, 3]];
 const CASING_MINOR: Stops = [[12, 0.5], [16, 1.2], [20, 2.5]];
 
@@ -402,6 +435,9 @@ function roadGroup(p: Palette, group: "tunnel" | "road" | "bridge"): Layer[] {
 }
 
 function pathLayers(p: Palette): Layer[] {
+  // Footpaths, cycleways, steps, tracks through parks: the things you use to
+  // work out exactly where you're standing. Cycleways get a teal tint.
+  const isCycleway: Expr = ["==", ["get", "subclass"], "cycleway"];
   return [
     fill("pedestrian-area", "transportation", ["all", isPolygon, classIn("pedestrian", "path")], p.pedestrian, { minzoom: 14 }),
     {
@@ -419,22 +455,21 @@ function pathLayers(p: Palette): Layer[] {
       type: "line",
       source: SOURCE,
       "source-layer": "transportation",
-      minzoom: 15.5,
-      filter: ["all", isLine, classIn("path"), ["!=", ["get", "brunnel"], "tunnel"]],
+      minzoom: 14.5,
+      filter: ["all", isLine, classIn("path", "track"), ["!=", ["get", "brunnel"], "tunnel"]],
       layout: { "line-cap": "butt", "line-join": "round" },
       paint: {
-        "line-color": p.path,
-        "line-width": ramp([[15.5, 0.6], [18, 1.2], [20, 2]]),
-        "line-dasharray": [2, 1.5],
-        "line-opacity": linear([[15.5, 0], [16.5, 1]]),
+        "line-color": ["case", isCycleway, p.cycleway, p.path],
+        "line-width": ramp([[14.5, 0.6], [16, 1], [18, 1.6], [20, 2.6]]),
+        "line-dasharray": [2.5, 1.5],
+        "line-opacity": linear([[14.5, 0], [15.5, 1]]),
       },
     },
   ];
 }
 
 function railLayers(p: Palette): Layer[] {
-  // Heavy rail + light rail only: Melbourne's trams run down most major
-  // roads and would draw a grey line along every one of them.
+  // Heavy rail + light rail; trams are drawn separately, above the roads.
   const filter: Expr = ["all", isLine, classIn("rail", "transit"), ["!", subclassIn("tram")], ["!=", ["get", "brunnel"], "tunnel"], ["!", ["has", "service"]]];
   const width = ramp([[10, 0.6], [14, 1.6], [18, 3.2], [20, 5]]);
   return [
@@ -463,34 +498,73 @@ function railLayers(p: Palette): Layer[] {
   ];
 }
 
+function tramLayers(p: Palette): Layer[] {
+  const notTunnel: Expr = ["!=", ["get", "brunnel"], "tunnel"];
+  return [
+    {
+      // Melbourne's trams run down most major roads: a thin line on top of the
+      // road fill is enough to recognise a tram route.
+      id: "tram",
+      type: "line",
+      source: SOURCE,
+      "source-layer": "transportation",
+      minzoom: 14,
+      filter: ["all", isLine, subclassIn("tram"), notTunnel],
+      paint: { "line-color": p.tram, "line-width": ramp([[14, 0.6], [16, 1], [18, 1.6], [20, 2.4]]) },
+    },
+  ];
+}
+
 function buildingLayers(p: Palette): Layer[] {
+  // Flat footprints with a crisp outline, so individual houses are easy to
+  // tell apart when placing a pin.
   return [
     {
       id: "building",
       type: "fill",
       source: SOURCE,
       "source-layer": "building",
-      minzoom: 14.5,
-      maxzoom: 16,
+      minzoom: 13.5,
       paint: {
         "fill-color": p.building,
-        "fill-outline-color": p.buildingOutline,
-        "fill-opacity": linear([[14.5, 0], [15.3, 1], [15.6, 1], [16, 0]]),
+        "fill-opacity": linear([[13.5, 0], [14.5, 1]]),
       },
     },
     {
-      id: "building-3d",
-      type: "fill-extrusion",
+      id: "building-outline",
+      type: "line",
       source: SOURCE,
       "source-layer": "building",
-      minzoom: 15,
-      filter: ["!=", ["get", "hide_3d"], true],
+      minzoom: 14,
       paint: {
-        "fill-extrusion-color": p.buildingTop,
-        "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], 15, 0, 15.8, ["get", "render_height"]],
-        "fill-extrusion-base": ["get", "render_min_height"],
-        "fill-extrusion-opacity": linear([[15, 0], [15.6, p.buildingOpacity]]),
-        "fill-extrusion-vertical-gradient": true,
+        "line-color": p.buildingOutline,
+        "line-width": linear([[14, 0.4], [16, 0.7], [18, 1], [20, 1.4]]),
+        "line-opacity": linear([[14, 0], [15, 1]]),
+      },
+    },
+  ];
+}
+
+function housenumberLayers(p: Palette): Layer[] {
+  return [
+    {
+      id: "housenumber",
+      type: "symbol",
+      source: SOURCE,
+      "source-layer": "housenumber",
+      minzoom: 16.5,
+      layout: {
+        "text-field": ["get", "housenumber"],
+        "text-font": FONT_REGULAR,
+        "text-size": linear([[16.5, 9.5], [18, 11], [20, 13]]),
+        "text-padding": 1,
+        "text-max-width": 6,
+      },
+      paint: {
+        "text-color": p.housenumber,
+        "text-halo-color": p.building,
+        "text-halo-width": 1.2,
+        "text-opacity": linear([[16.5, 0], [17, 1]]),
       },
     },
   ];
@@ -506,6 +580,111 @@ function boundaryLayers(p: Palette): Layer[] {
       maxzoom: 9,
       filter: ["all", ["<=", ["get", "admin_level"], 4], ["!=", ["get", "maritime"], 1]],
       paint: { "line-color": p.boundary, "line-width": 1, "line-dasharray": [3, 2] },
+    },
+  ];
+}
+
+// --- POIs -----------------------------------------------------------------
+
+/**
+ * `<name>_11` icons in the OpenFreeMap "ofm" sprite (pre-coloured badges).
+ * MapLibre v4's `coalesce` can't fall back past a missing image, so icons are
+ * picked by explicit lookup instead.
+ */
+const SPRITE_ICONS = [
+  "alcohol_shop", "art_gallery", "attraction", "bakery", "bank", "bar", "beer", "bicycle", "bicycle_rental", "bus",
+  "butcher", "cafe", "campsite", "car", "castle", "cemetery", "cinema", "clothing_store", "college", "dentist",
+  "doctors", "dog_park", "drinking_water", "fast_food", "ferry", "fire_station", "fuel", "garden", "gift", "golf",
+  "grocery", "hairdresser", "harbor", "hospital", "ice_cream", "information", "laundry", "library", "lodging",
+  "monument", "museum", "music", "park", "parking", "parking_garage", "pharmacy", "picnic_site", "pitch",
+  "place_of_worship", "playground", "police", "post", "railway", "railway_light", "restaurant", "school", "shelter",
+  "shop", "soccer", "stadium", "swimming", "telephone", "tennis", "theatre", "toilets", "town_hall", "veterinary",
+  "zoo",
+];
+
+/** Sprite icon for a POI: `<subclass>_11`, else `<class>_11`, else a dot. */
+const POI_ICON: Expr = [
+  "match",
+  ["get", "subclass"],
+  SPRITE_ICONS,
+  ["concat", ["get", "subclass"], "_11"],
+  ["match", ["get", "class"], SPRITE_ICONS, ["concat", ["get", "class"], "_11"], "dot_11"],
+];
+
+function poiColor(p: Palette): Expr {
+  return [
+    "match",
+    ["get", "class"],
+    ["cafe", "restaurant", "fast_food", "bar", "beer", "ice_cream", "bakery"], p.poiFood,
+    ["shop", "grocery", "clothing_store", "alcohol_shop", "furniture", "gift", "florist", "hairdresser", "laundry", "butcher", "car", "bicycle", "fuel"], p.poiShop,
+    ["hospital", "pharmacy", "doctors", "dentist", "veterinary"], p.poiHealth,
+    ["school", "college", "library", "place_of_worship", "town_hall", "post", "police", "fire_station", "museum", "art_gallery", "theatre", "cinema"], p.poiCivic,
+    ["playground", "pitch", "sports", "swimming", "stadium", "golf", "dog_park", "picnic_site", "tennis", "soccer"], p.poiLeisure,
+    p.poiOther,
+  ] as unknown as Expr;
+}
+
+/**
+ * Shops, cafés, schools, churches, pharmacies, playgrounds… progressively by
+ * the tile's `rank` (lower = more notable) so z15 shows a handful of
+ * landmarks and z17+ shows nearly everything. Parks/gardens and transit have
+ * their own layers.
+ */
+function poiLayers(p: Palette): Layer[] {
+  const notOwnLayer: Expr = ["!", classIn("park", "garden", "railway", "bus", "entrance")];
+  // Landmarks people navigate by show from z15 whatever their tile rank.
+  const landmark: Expr = ["any", classIn("school", "college", "place_of_worship", "hospital", "pharmacy", "library", "town_hall", "post"), subclassIn("supermarket", "playground")];
+  const poi = (id: string, minzoom: number, rankFilter: Expr): Layer => ({
+    id,
+    type: "symbol",
+    source: SOURCE,
+    "source-layer": "poi",
+    minzoom,
+    filter: ["all", isPoint, notOwnLayer, ["has", "name"], rankFilter],
+    layout: {
+      "icon-image": POI_ICON,
+      "icon-size": linear([[minzoom, 0.8], [18, 1], [20, 1.1]]),
+      "text-field": NAME,
+      "text-font": FONT_REGULAR,
+      "text-size": linear([[15, 10.5], [18, 11.5], [20, 12.5]]),
+      "text-max-width": 8,
+      "text-anchor": "top",
+      "text-offset": [0, 0.8],
+      "text-optional": true,
+      "text-padding": 2,
+      "symbol-sort-key": ["get", "rank"],
+    },
+    paint: { "text-color": poiColor(p), "text-halo-color": p.labelHalo, "text-halo-width": 1.4 },
+  });
+  return [
+    poi("poi-17", 17, ["all", ["!", landmark], [">", ["get", "rank"], 20]]),
+    poi("poi-16", 16, ["all", ["!", landmark], [">", ["get", "rank"], 6], ["<=", ["get", "rank"], 20]]),
+    poi("poi-15", 15, ["any", landmark, ["<=", ["get", "rank"], 6]]),
+  ];
+}
+
+/** Bus and tram stops: icon only until z18 so they don't crowd street names. */
+function stopLayers(p: Palette): Layer[] {
+  return [
+    {
+      id: "poi-stop",
+      type: "symbol",
+      source: SOURCE,
+      "source-layer": "poi",
+      minzoom: 16,
+      filter: ["all", isPoint, ["any", ["all", classIn("bus"), subclassIn("bus_stop")], ["all", classIn("railway"), subclassIn("tram_stop")]]],
+      layout: {
+        "icon-image": ["match", ["get", "subclass"], "tram_stop", "railway_light_11", "bus_11"],
+        "icon-size": linear([[16, 0.7], [18, 0.9], [20, 1]]),
+        "text-field": ["step", ["zoom"], "", 18, NAME],
+        "text-font": FONT_REGULAR,
+        "text-size": 10.5,
+        "text-max-width": 8,
+        "text-anchor": "top",
+        "text-offset": [0, 0.8],
+        "text-optional": true,
+      },
+      paint: { "text-color": p.transit, "text-halo-color": p.labelHalo, "text-halo-width": 1.4 },
     },
   ];
 }
@@ -606,17 +785,35 @@ function labelLayers(p: Palette): Layer[] {
       paint: { "text-color": p.parkLabel, ...halo },
     },
     {
-      id: "label-road-minor",
+      // Driveways and car-park aisles are rarely named; laneways often are.
+      id: "label-road-path",
       type: "symbol",
       source: SOURCE,
       "source-layer": "transportation_name",
-      minzoom: 15,
-      filter: ["all", isLine, classIn("minor", "service")],
+      minzoom: 16,
+      filter: ["all", isLine, classIn("service", "track", "path", "pedestrian")],
       layout: {
         "symbol-placement": "line",
         "text-field": NAME,
         "text-font": FONT_REGULAR,
-        "text-size": linear([[15, 10.5], [18, 12.5]]),
+        "text-size": linear([[16, 9.5], [18, 11], [20, 12.5]]),
+        "symbol-spacing": 250,
+        "text-padding": 2,
+      },
+      paint: { "text-color": p.roadLabel, "text-halo-color": p.roadLabelHalo, "text-halo-width": 1.4 },
+    },
+    {
+      id: "label-road-minor",
+      type: "symbol",
+      source: SOURCE,
+      "source-layer": "transportation_name",
+      minzoom: 14,
+      filter: ["all", isLine, classIn("minor")],
+      layout: {
+        "symbol-placement": "line",
+        "text-field": NAME,
+        "text-font": FONT_REGULAR,
+        "text-size": linear([[14, 10], [16, 11], [18, 12.5], [20, 14]]),
         "symbol-spacing": 300,
         "text-padding": 4,
       },
@@ -633,7 +830,7 @@ function labelLayers(p: Palette): Layer[] {
         "symbol-placement": "line",
         "text-field": NAME,
         "text-font": FONT_REGULAR,
-        "text-size": linear([[12.5, 10.5], [15, 12], [18, 14]]),
+        "text-size": linear([[12.5, 10.5], [15, 12], [18, 14], [20, 15.5]]),
         "symbol-spacing": 350,
         "text-padding": 6,
       },
@@ -742,9 +939,6 @@ export function sageMapStyle(theme: MapTheme): Spec {
     name: `Sage ${theme}`,
     glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
     sprite: "https://tiles.openfreemap.org/sprites/ofm_f384/ofm",
-    // Soft, low-contrast lighting so 3D buildings look like Google's pale
-    // massing models rather than grey slabs.
-    light: { anchor: "viewport", color: "#ffffff", intensity: theme === "dark" ? 0.25 : 0.2, position: [1.2, 200, 35] },
     sources: {
       [SOURCE]: {
         type: "vector",
@@ -764,8 +958,14 @@ export function sageMapStyle(theme: MapTheme): Spec {
       ...pathLayers(p),
       ...roadGroup(p, "road"),
       ...roadGroup(p, "bridge"),
+      ...tramLayers(p),
       ...buildingLayers(p),
       ...boundaryLayers(p),
+      // Symbols: later layers win collisions, so house numbers give way to
+      // POIs, which give way to street/place names.
+      ...housenumberLayers(p),
+      ...poiLayers(p),
+      ...stopLayers(p),
       ...labelLayers(p),
     ],
   };
