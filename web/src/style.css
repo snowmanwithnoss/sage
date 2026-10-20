@@ -175,24 +175,19 @@ body,
 }
 
 .danger-btn {
-  min-width: 0;
   font: inherit;
-  font-size: 0.8rem;
-  letter-spacing: 1px;
   padding: 6px 0;
   background: transparent;
   border: 1px solid #ccc;
   border-radius: 8px;
   cursor: pointer;
-  white-space: nowrap;
 }
 
-/* Narrow panels: shrink the pepper text further so 5 still fit */
-@media (max-width: 420px) {
-  .danger-btn {
-    font-size: 0.62rem;
-    letter-spacing: 0;
-  }
+.danger-preview {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  white-space: nowrap;
 }
 
 .danger-btn.selected {

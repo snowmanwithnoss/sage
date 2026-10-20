@@ -227,10 +227,13 @@ export default function App() {
                   title={`Danger rating ${value} of ${DANGER_MAX}`}
                   onClick={() => setForm({ ...form, danger: value })}
                 >
-                  {dangerPeppers(value).replace(/·/g, "○")}
+                  {value}
                 </button>
               ))}
             </div>
+            <p className="danger-preview" aria-live="polite">
+              {dangerPeppers(form.danger).replace(/·/g, "○")} {form.danger}/{DANGER_MAX}
+            </p>
           </fieldset>
           <div className="actions">
             <button type="button" onClick={() => setForm(null)} disabled={submitting}>
